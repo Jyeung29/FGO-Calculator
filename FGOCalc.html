@@ -901,10 +901,10 @@
                     if (servant.conditionalBuffs.length > 0) {
                         for (let j = 0; j < servant.conditionalBuffs.length; j++) {
                             if (servant.conditionalBuffs[j].type == "bonusMultiplier") {
-                                if (servant.conditionalBuffs[j].condition1 == enemyClass[j].value) {
+                                if (servant.conditionalBuffs[j].condition1 == enemyClass[i].value) {
                                     bonusModifier += servant.conditionalBuffs[j].value;
                                     bonuses += servant.conditionalBuffs[j].value;
-                                } else if (servant.conditionalBuffs[j].condition1 == enemyAttribute[j].value) {
+                                } else if (servant.conditionalBuffs[j].condition1 == enemyAttribute[i].value) {
                                     bonusModifier += servant.conditionalBuffs[j].value;
                                     bonuses += servant.conditionalBuffs[j].value;
                                 } else if (enemyTraits[i][servant.conditionalBuffs[j].condition1].checked == true) {
@@ -915,10 +915,12 @@
                                     bonuses += servant.conditionalBuffs[j].value;
                                 }
                             } else if (servant.conditionalBuffs[j].type == "effectiveModifier") {
-                                if (servant.conditionalBuffs[j].condition1 == enemyClass[j].value) {
+                                console.log(servant.conditionalBuffs[j].condition1);
+                                console.log(enemyClass[i].value);
+                                if (servant.conditionalBuffs[j].condition1 == enemyClass[i].value) {
                                     effectiveModifier = servant.conditionalBuffs[j].value;
                                     isEffective = 1;
-                                } else if (servant.conditionalBuffs[j].condition1 == enemyAttribute[j].value) {
+                                } else if (servant.conditionalBuffs[j].condition1 == enemyAttribute[i].value) {
                                     effectiveModifier = servant.conditionalBuffs[j].value;
                                     isEffective = 1;
                                 } else if (isNaN(servant.conditionalBuffs[j].condition1) == false) {
