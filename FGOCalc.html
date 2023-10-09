@@ -915,8 +915,6 @@
                                     bonuses += servant.conditionalBuffs[j].value;
                                 }
                             } else if (servant.conditionalBuffs[j].type == "effectiveModifier") {
-                                console.log(servant.conditionalBuffs[j].condition1);
-                                console.log(enemyClass[i].value);
                                 if (servant.conditionalBuffs[j].condition1 == enemyClass[i].value) {
                                     effectiveModifier = servant.conditionalBuffs[j].value;
                                     isEffective = 1;
