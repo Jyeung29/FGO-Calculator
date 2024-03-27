@@ -1,0 +1,2863 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>FGO Event Comp NP Damage Calculator</title>
+</head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<style>
+    .statbox {
+        text-align: right;
+        width: 150px;
+        display: inline-block;
+    }
+
+    .statbox1 {
+        text-align: right;
+        width: 58px;
+        display: inline-block;
+    }
+
+    .center {
+        text-align: center;
+    }
+
+    ul.myUL {
+        display: inline-block;
+        text-align: left;
+        columns: 1;
+    }
+
+    li {
+        break-inside: avoid;
+    }
+
+    label {
+        white-space: nowrap;
+        font-size: 15px;
+    }
+
+    input[type=number] {
+        width: 70px;
+    }
+
+    input {
+        border: 2px solid #BCBBBB;
+        border-radius: 5px;
+        background-color: #FEFEFE;
+        padding: 2px 2px;
+    }
+
+    select {
+        border: 2px solid #BCBBBB;
+        border-radius: 5px;
+        background-color: #FEFEFE;
+        padding: 2px 2px;
+    }
+
+    .inputLabel {
+        white-space: nowrap;
+        text-align: center;
+    }
+
+    .enemyWave {
+        display: grid;
+        column-gap: 10px;
+        width: 108%;
+    }
+
+    td,
+    th {
+        border: 1px solid #dddddd;
+        text-align: center;
+        padding: 8px;
+    }
+
+    html,
+    body {
+        padding: 2%;
+        min-width: 80vh;
+        font-family: "Verdana", monospace;
+        background-color: #F9F8F8;
+        line-height: 180%;
+    }
+
+    h2 {
+        border-bottom: 5px solid black;
+    }
+
+    h4 {
+        border-bottom: 2px solid black;
+    }
+
+    .inputs {
+        width: 80%;
+        grid-row-start: 1;
+        grid-row-end: 3;
+        text-align: center;
+        min-width: 230px;
+        border: 2px solid black;
+    }
+
+    .ceInput {
+        text-align: center;
+        width: 95%;
+        min-width: 230px;
+        columns: 2;
+        column-gap: 100px;
+        text-indent: 0;
+    }
+
+    table {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    button {
+        border-radius: 10px;
+        border: none;
+        background-color: #0180EF;
+        color: white;
+        width: 110px;
+        height: 50px;
+        font-style: bold;
+        font-size: 20px;
+
+    }
+</style>
+
+
+
+<body>
+    <script>
+
+        class Buff {
+            constructor(type, value, turns, rangeNum, times, condition1, condition2) {
+                this.value = Number(value);
+                this.turns = Number(turns);
+                this.type = type;
+                this.rangeNum = rangeNum;
+                this.condition1 = condition1; //is a number 0 to 34 if an Anti-trait to access 2d array, a string such as "Saber" if Anti-Class
+                this.condition2 = condition2;
+                this.times = times;
+            }
+        }
+        /*Buff Types are: atk, Buster, Arts, Quick, overcharge, npGen, NP Regen, bonusMultiplier, bonusDamage, effectiveModifier, special (likes, Heroic King) */
+        /*rangeNum: (0, Self) (1, Targeted) (2, AOE) (3, All but self)*/
+
+        class Debuff {
+            constructor(type, value) {
+                this.type = type;
+                this.value = Number(value);
+            }
+        }
+        /*Debuff types: defense, Buster, Arts, Quick, mentalDebuff, burn, curse, roman)*/
+        /*rangeNum (0, Single) (1, AOE)*/
+
+        class Skill {
+            constructor(type, cooldown, battery, batteryTarget) {
+                this.type = type; //type can be "charge" "multi" "one" (for debuff and 1 turn buff)
+                this.cooldown = cooldown;
+                this.buffs = []; //array
+                this.debuffs = []; //array
+                this.singleTargetDebuffs = [];
+                this.battery = Number(battery);
+                this.batteryTarget = batteryTarget;
+                this.delayBuffs = [];
+                this.conditionalBuffs = [];
+            }
+        }
+        class NP {
+            constructor(type, baseDamage, damageScale, targetNum) {
+                this.type = type;
+                this.baseDamage = baseDamage;
+                this.damageScale = damageScale;
+                this.targetNum = targetNum; //0 single 1 AOE
+                this.initialBuffs = [];
+                this.afterBuffs = [];
+                this.afterConditionBuffs = [];
+                this.initialDebuffs = [];
+                this.conditionalBuffs = [];
+                this.singleTargetDebuffs = [];
+                this.overCharge = []; //order of type1, type2, value, turns, activation, scale, target
+                this.battery = [];
+            }
+        }
+        class Servant {
+            constructor(name, id, servantClass, attribute, atk, skillUpgrade) {
+                this.atk = atk;
+                this.name = name;
+                this.id = id;
+                this.servantClass = servantClass;
+                this.np;
+                this.traits;
+                this.skillUpgrade = skillUpgrade;
+                this.attribute = attribute;
+                this.skills = [];
+                this.teams = [];
+                this.buffs = [];
+                this.debuffs = [];
+                this.singleTargetDebuffs = [];
+                this.conditionalBuffs = [];
+            }
+        }
+        class CE {
+            constructor(name, atk, npBattery, atkBuff, buster, arts, quick, npDamage, npGen, npRegen, bonusModifier, overcharge) {
+                this.atk = Number(atk);
+                this.npBattery = npBattery;
+                this.atkBuff = Number(atkBuff);
+                this.buster = Number(buster);
+                this.arts = Number(arts);
+                this.quick = Number(quick);
+                this.npDamage = Number(npDamage);
+                this.npGen = Number(npGen);
+                this.npRegen = Number(npRegen);
+                this.bonusModifier = Number(bonusModifier);
+                this.overcharge = Number(overcharge);
+                this.name = name;
+            }
+        }
+
+        function singleComps() {
+            const removeResult = document.getElementsByClassName("comp");
+            for (let s = 0; s < removeResult.length; s) {
+                removeResult[s].remove();
+            }
+            const response = document.createElement("p");
+            const responseText = document.createTextNode("Calculating...");
+            response.id = "response";
+            response.appendChild(responseText);
+            const resultDiv = document.getElementById("Results");
+            resultDiv.appendChild(response);
+
+            const ce = new CE("Drops", document.getElementById('CEatk').value, document.getElementById('CEnpCharge').value, document.getElementById('CEatkBuff').value, document.getElementById('CEbuster').value, document.getElementById('CEarts').value, document.getElementById('CEquick').value, document.getElementById('CEnpDamage').value, document.getElementById('CEnpOC').value, document.getElementById('CEnpGen').value, document.getElementById('CEnpRegen').value, document.getElementById('CEbonusMultiplier').value, document.getElementById('CEnpOC').value);
+            const mlb = new CE("MLB Drops", document.getElementById('CEatk').value, document.getElementById('MLBnpCharge').value, document.getElementById('MLBatkBuff').value, document.getElementById('MLBbuster').value, document.getElementById('MLBarts').value, document.getElementById('MLBquick').value, document.getElementById('MLBnpDamage').value, document.getElementById('MLBnpOC').value, document.getElementById('MLBnpGen').value, document.getElementById('MLBnpRegen').value, document.getElementById('CEnpOC').value);
+
+            const enemyHP = document.getElementsByClassName('enemyHP');
+            const enemyClass = document.getElementsByClassName('enemyClass');
+            let index = document.getElementById('desiredServant').value;
+            const chosenServant = servants[index];
+            let resultString;
+            let compResult;
+
+            if (chosenServant.teams.length > 0) {
+
+                let teams = false;
+                const compInfo = [];
+                for (let s = 0; s < chosenServant.teams.length; s = s + 3) {
+
+
+                    compResult = compDamageCalc(chosenServant, ce, chosenServant.teams[s], compInfo);
+                    if (compResult.includes("No Results")) {
+                        while (compInfo.length > 0) {
+                            compInfo.pop();
+                        }
+                        compResult = compDamageCalc(chosenServant, mlb, chosenServant.teams[s], compInfo);
+                        if (compResult.includes("No Results") && (s + 4) > chosenServant.teams.length && teams == false) {
+                            document.getElementById("response").remove();
+                            const para = document.createElement("p");
+                            const node = document.createTextNode(compResult);
+                            para.className = "comp";
+                            para.appendChild(node);
+                            const element = document.getElementById("Results");
+                            element.appendChild(para);
+                        } else if (compResult == "Valid Results") {
+                            document.getElementById("response").remove();
+                            let fourthServant = false;
+                            teams = true;
+                            const resultTable = document.createElement("table");
+                            resultTable.className = "comp";
+                            const resultHead = document.createElement("tr");
+                            resultHead.className = "comp";
+                            if (compInfo[4].length > 0) {
+                                fourthServant = true;
+                            }
+                            for (let n = 0; n < 7; n++) {
+                                if ((fourthServant == true) || (fourthServant == false && n != 4)) {
+                                    const headingElement = document.createElement("th");
+                                    headingElement.className = "comp";
+                                    const headingText = document.createTextNode(compInfo[n]);
+                                    headingElement.appendChild(headingText);
+                                    resultHead.appendChild(headingElement);
+                                }
+                            }
+                            resultTable.appendChild(resultHead);
+                            let rows = 0;
+                            while (rows < 3) {
+                                rows++;
+                                const waveRow = document.createElement("tr");
+                                waveRow.className = "comp";
+                                for (let n = (rows * 7); n < ((rows + 1) * 7); n++) {
+                                    if ((fourthServant == true) || (fourthServant == false && n - (7 * rows) != 4)) {
+                                        const waveInfo = document.createElement("td");
+                                        waveInfo.className = "comp";
+                                        const waveText = document.createTextNode(compInfo[n]);
+                                        waveInfo.appendChild(waveText);
+                                        waveRow.appendChild(waveInfo);
+                                    }
+                                }
+                                resultTable.appendChild(waveRow);
+                            }
+                            const element = document.getElementById("Results");
+                            element.appendChild(resultTable);
+                        }
+                    } else if (compResult == "Valid Results") {
+                        document.getElementById("response").remove();
+                        teams = true;
+                        let fourthServant = false;
+                        const resultTable = document.createElement("table");
+                        resultTable.className = "comp";
+                        const resultHead = document.createElement("tr");
+                        resultHead.className = "comp";
+                        if (compInfo[4].length > 0) {
+                            fourthServant = true;
+                        }
+                        for (let n = 0; n < 7; n++) {
+                            if ((fourthServant == true) || (fourthServant == false && n != 4)) {
+                                const headingElement = document.createElement("th");
+                                headingElement.className = "comp";
+                                const headingText = document.createTextNode(compInfo[n]);
+                                headingElement.appendChild(headingText);
+                                resultHead.appendChild(headingElement);
+                            }
+                        }
+                        resultTable.appendChild(resultHead);
+                        let rows = 0;
+                        while (rows < 3) {
+                            rows++;
+                            const waveRow = document.createElement("tr");
+                            waveRow.className = "comp";
+                            for (let n = (rows * 7); n < ((rows + 1) * 7); n++) {
+                                if ((fourthServant == true) || (fourthServant == false && n - (7 * rows) != 4)) {
+                                    const waveInfo = document.createElement("td");
+                                    waveInfo.className = "comp";
+                                    const waveText = document.createTextNode(compInfo[n]);
+                                    waveInfo.appendChild(waveText);
+                                    waveRow.appendChild(waveInfo);
+                                }
+                            }
+                            resultTable.appendChild(waveRow);
+
+                        }
+                        const element = document.getElementById("Results");
+                        element.appendChild(resultTable);
+                    }
+                }
+            }
+        }
+
+
+
+        /* function calcComps() {
+             const ce = new CE(document.getElementById('CEatk'), document.getElementById('CEnpCharge'), document.getElementById('CEatkBuff'), document.getElementById('CEbuster'), document.getElementById('CEarts'), document.getElementById('CEquick'), document.getElementById('CEnpDamage'), document.getElementById('CEnpOC'), document.getElementById('CEnpGen'), document.getElementById('CEnpRegen'), document.getElementById('CEbonusMultiplier'));
+             const mlb = new CE(document.getElementById('MLBatk'), document.getElementById('MLBnpCharge'), document.getElementById('MLBatkBuff'), document.getElementById('MLBbuster'), document.getElementById('MLBarts'), document.getElementById('MLBquick'), document.getElementById('MLBnpDamage'), document.getElementById('MLBnpOC'), document.getElementById('MLBnpGen'), document.getElementById('MLBnpRegen'), document.getElementById('MLBbonusMultiplier'));
+             const enemyHP = document.getElementsByClassName('enemyHP');
+             const enemyClass = document.getElementsByClassName('enemyClass');
+             const validServants = [];
+             const classBools = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] // 0 saber, 1 lancer, 2 archer, 3 rider, 4 caster, 5 assassin, 6 beserker, 7 ruler, 8 moonCancer, 9 avenger, 10 alterEgo, 11 foreigner, 12 pretender
+             for (let i = 0; i < 9; i++) {
+                 if (enemyHP[i].value > 0) {
+                     if (enemyClass[i].value == "Saber") {
+                         classBools[1] = 0;
+                         classBools[10] = 0;
+                     } else if (enemyClass[i].value == "Lancer") {
+                         classBools[2] = 0;
+                         classBools[10] = 0;
+                     } else if (enemyClass[i].value == "Archer") {
+                         classBools[0] = 0;
+                         classBools[10] = 0;
+                     } else if (enemyClass[i].value == "Caster") {
+                         classBools[5] = 0;
+                         classBools[12] = 0;
+                     } else if (enemyClass[i].value == "Rider") {
+                         classBools[4] = 0;
+                         classBools[12] = 0;
+                     } else if (enemyClass[i].value == "Assassin") {
+                         classBools[3] = 0;
+                         classBools[12] = 0;
+                     } else if (enemyClass[i].value == "Foreigner") {
+                         classBools[6] = 0;
+                         classBools[12] = 0;
+                     } else if (enemyClass[i].value == "Pretender") {
+                         classBools[10] = 0;
+                     } else if (enemyClass[i].value == "Alter Ego") {
+                         classBools[11] = 0;
+                     } else if (enemyClass[i].value == "Avenger") {
+                         classBools[7] = 0;
+                     } else if (enemyClass[i].value == "Moon Cancer") {
+                         classBools[9] = 0;
+                     } else if (enemyClass[i].value == "Ruler") {
+                         classBools[0] = 0;
+                         classBools[1] = 0;
+                         classBools[2] = 0;
+                         classBools[3] = 0;
+                         classBools[4] = 0;
+                         classBools[5] = 0;
+                         classBools[8] = 0;
+                     }
+                 }
+             }
+             let x = 0;
+             for (let i = 0; i < classBools.length; i++) {
+                 if (classBools[i] == 0) {
+                     x++;
+                 }
+             }
+             if (x == 13) {
+                 //return no comps
+             }
+ 
+             //loop for all servants
+             
+             add buffs according to team comp and activate skills
+             add np initial buffs checks overcharge
+             add np initial debuffs checks overcharge
+             npDamageCalc(); returns array
+             add np after buffs
+             Ticks down buff turns and filters
+             Repeats for each wave
+             
+         }
+         */
+
+        function statusTick(servant) {
+            if (servant.buffs.length > 0) {
+                for (let k = 0; k < servant.buffs.length; k++) {
+                    if (servant.buffs[k].turns > 0) {
+                        servant.buffs[k].turns--;
+                    }
+                    if (servant.buffs[k].times > 0) {
+                        servant.buffs[k].times--;
+                    }
+                }
+                if (servant.debuffs.length > 0) {
+                    while (servant.debuffs.length > 0) {
+                        servant.debuffs.pop();
+                    }
+                }
+                if (servant.singleTargetDebuffs.length > 0) {
+                    while (servant.singleTargetDebuffs.length > 0) {
+                        servant.singleTargetDebuffs.pop();
+                    }
+                }
+                if (servant.conditionalBuffs.length > 0) {
+                    for (let k = 0; k < servant.conditionalBuffs.length; k++) {
+                        servant.conditionalBuffs[k].turns--;
+                    }
+                }
+            }
+        }
+
+        function compDamageCalc(servant, CE, teamString, infoArray) {
+            //Establish Class Atk Modifiers
+            let atk = servant.atk + CE.atk;
+            if (servant.servantClass == "Archer") {
+                atk *= 0.95;
+            } else if (servant.servantClass == "Lancer") {
+                atk *= 1.05;
+            } else if (servant.servantClass == "Caster" || servant.servantClass == "Assassin") {
+                atk *= 0.9;
+            } else if (servant.servantClass == "Beserker" || servant.servantClass == "Ruler"
+                || servant.servantClass == "Avenger") {
+                atk *= 0.9;
+            }
+
+            let card = 0;
+            let atkAdd = CE.atkBuff;
+            let bonus = CE.bonusModifier;
+            let npDamage = CE.npDamage;
+
+            //Adding CE stats and 
+            if (servant.np.type == "Buster" && CE.buster > 0) {
+                card = CE.buster;
+            } else if (servant.np.type == "Arts" && CE.arts > 0) {
+                card = CE.arts;
+            } else if (servant.np.type == "Quick" && CE.quick > 0) {
+                card = CE.quick;
+            }
+
+            const resultArray = []; //information stored in intervals of 7
+            if (teamString == "KK" && CE.npBattery >= 80) {
+                servant.buffs.push(new Buff("Buster", 0.5, 3, 0, "none", "none", "none"), new Buff("Buster", 0.5, 3, 0, "none", "none", "none"));
+                //need to decide koyan mankiller skill use
+                infoArray.push("Waves", "Koyan Light", servant.name, "Koyan Light", "", "Atlus MC", "Leftover HP", "Wave 1:", "S3"); //4 rows of 7 columns (needs to include NP level, skill, Append, Mystic Code, CE information)
+
+                let tempStr = "";
+                for (let f = 0; f < servant.skills.length; f++) {
+
+                    if (servant.skills[f].type == "multi") {
+                        if (servant.skills[f].buffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].buffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].debuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].debuffs.length; d++) {
+                                servant.debuffs.push(new Buff(servant.skills[f].debuffs[d].type, servant.skills[f].debuffs[d].value, servant.skills[f].debuffs[d].turns, servant.skills[f].debuffs[d].rangeNum, servant.skills[f].debuffs[d].times, servant.skills[f].debuffs[d].condition1, servant.skills[f].debuffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].conditionalBuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].conditionalBuffs.length; d++) {
+                                servant.conditionalBuffs.push(new Buff(servant.skills[f].conditionalBuffs[d].type, servant.skills[f].conditionalBuffs[d].value, servant.skills[f].conditionalBuffs[d].turns, servant.skills[f].conditionalBuffs[d].rangeNum, servant.skills[f].conditionalBuffs[d].times, servant.skills[f].conditionalBuffs[d].condition1, servant.skills[f].conditionalBuffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].singleTargetDebuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].singleTargetDebuffs.length; d++) {
+                                servant.singleTargetDebuffs.push(new Buff(servant.skills[f].singleTargetDebuffs[d].type, servant.skills[f].singleTargetDebuffs[d].value, servant.skills[f].singleTargetDebuffs[d].turns, servant.skills[f].singleTargetDebuffs[d].rangeNum, servant.skills[f].singleTargetDebuffs[d].times, servant.skills[f].singleTargetDebuffs[d].condition1, servant.skills[f].singleTargetDebuffs[d].condition2));
+                            }
+                        }
+                        if (tempStr.length > 0) {
+                            tempStr = tempStr + ", S" + (f + 1);
+                        } else {
+                            tempStr = "S" + (f + 1);
+                        }
+                    } else if (servant.skills[f].type == "one" && servant.skills[f].cooldown == 8) {
+                        if (servant.skills[f].buffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].buffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].debuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].debuffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].conditionalBuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].conditionalBuffs.length; d++) {
+                                servant.conditionalBuffs.push(new Buff(servant.skills[f].conditionalBuffs[d].type, servant.skills[f].conditionalBuffs[d].value, servant.skills[f].conditionalBuffs[d].turns, servant.skills[f].conditionalBuffs[d].rangeNum, servant.skills[f].conditionalBuffs[d].times, servant.skills[f].conditionalBuffs[d].condition1, servant.skills[f].conditionalBuffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].singleTargetDebuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].singleTargetDebuffs.length; d++) {
+                                servant.singleTargetDebuffs.push(new Buff(servant.skills[f].singleTargetDebuffs[d].type, servant.skills[f].singleTargetDebuffs[d].value, servant.skills[f].singleTargetDebuffs[d].turns, servant.skills[f].singleTargetDebuffs[d].rangeNum, servant.skills[f].singleTargetDebuffs[d].times, servant.skills[f].singleTargetDebuffs[d].condition1, servant.skills[f].singleTargetDebuffs[d].condition2));
+
+                            }
+                        }
+                        if (tempStr.length > 0) {
+                            tempStr = tempStr + ", S" + (f + 1);
+                        } else {
+                            tempStr = "S" + (f + 1);
+                        }
+                    } else if (servant.skills[f].type == "special") {
+                        if (servant.skills[f].buffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].buffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        }
+                        if (tempStr.length > 0) {
+                            tempStr = tempStr + ", S" + (f + 1);
+                        } else {
+                            tempStr = "S" + (f + 1);
+                        }
+                    }
+
+                }
+                infoArray.push(tempStr, "S3", "", "", "");
+
+
+
+                let resultType = waveCalc(servant, 1, atkAdd, card, bonus, npDamage, resultArray);
+                if (resultType == 0) {
+                    return "No Results: Servant does not meet damage requirments";
+                } else if (resultType == -1) {
+                    return "No Results: One or more waves do not have enemies";
+                }
+                statusTick(servant);
+                infoArray.push("Wave 2", "S1");
+                tempStr = "";
+                for (let f = 0; f < servant.skills.length; f++) {
+                    if (servant.skills[f].type == "multi" && servant.skills[f].cooldown <= 5) {
+                        if (servant.skills[f].buffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].buffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].debuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].debuffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].conditionalBuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].conditionalBuffs.length; d++) {
+                                servant.conditionalBuffs.push(new Buff(servant.skills[f].conditionalBuffs[d].type, servant.skills[f].conditionalBuffs[d].value, servant.skills[f].conditionalBuffs[d].turns, servant.skills[f].conditionalBuffs[d].rangeNum, servant.skills[f].conditionalBuffs[d].times, servant.skills[f].conditionalBuffs[d].condition1, servant.skills[f].conditionalBuffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].singleTargetDebuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].singleTargetDebuffs.length; d++) {
+                                servant.singleTargetDebuffs.push(new Buff(servant.skills[f].singleTargetDebuffs[d].type, servant.skills[f].singleTargetDebuffs[d].value, servant.skills[f].singleTargetDebuffs[d].turns, servant.skills[f].singleTargetDebuffs[d].rangeNum, servant.skills[f].singleTargetDebuffs[d].times, servant.skills[f].singleTargetDebuffs[d].condition1, servant.skills[f].singleTargetDebuffs[d].condition2));
+
+                            }
+                        }
+                        if (tempStr.length > 0) {
+                            tempStr = tempStr + ", S" + (f + 1);
+                        } else {
+                            tempStr = "S" + (f + 1);
+                        }
+                    } else if (servant.skills[f].type == "one" && servant.skills[f].cooldown <= 7) {
+                        if (servant.skills[f].buffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].buffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].debuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].debuffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].conditionalBuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].conditionalBuffs.length; d++) {
+                                servant.conditionalBuffs.push(new Buff(servant.skills[f].conditionalBuffs[d].type, servant.skills[f].conditionalBuffs[d].value, servant.skills[f].conditionalBuffs[d].turns, servant.skills[f].conditionalBuffs[d].rangeNum, servant.skills[f].conditionalBuffs[d].times, servant.skills[f].conditionalBuffs[d].condition1, servant.skills[f].conditionalBuffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].singleTargetDebuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].singleTargetDebuffs.length; d++) {
+                                servant.singleTargetDebuffs.push(new Buff(servant.skills[f].singleTargetDebuffs[d].type, servant.skills[f].singleTargetDebuffs[d].value, servant.skills[f].singleTargetDebuffs[d].turns, servant.skills[f].singleTargetDebuffs[d].rangeNum, servant.skills[f].singleTargetDebuffs[d].times, servant.skills[f].singleTargetDebuffs[d].condition1, servant.skills[f].singleTargetDebuffs[d].condition2));
+
+                            }
+                        }
+                        if (tempStr.length > 0) {
+                            tempStr = tempStr + ", S" + (f + 1);
+                        } else {
+                            tempStr = "S" + (f + 1);
+                        }
+                    } else if (servant.skills[f].type == "battery") {
+                        if (servant.skills[f].buffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].buffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].debuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].debuffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].conditionalBuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].conditionalBuffs.length; d++) {
+                                servant.conditionalBuffs.push(new Buff(servant.skills[f].conditionalBuffs[d].type, servant.skills[f].conditionalBuffs[d].value, servant.skills[f].conditionalBuffs[d].turns, servant.skills[f].conditionalBuffs[d].rangeNum, servant.skills[f].conditionalBuffs[d].times, servant.skills[f].conditionalBuffs[d].condition1, servant.skills[f].conditionalBuffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].singleTargetDebuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].singleTargetDebuffs.length; d++) {
+                                servant.singleTargetDebuffs.push(new Buff(servant.skills[f].singleTargetDebuffs[d].type, servant.skills[f].singleTargetDebuffs[d].value, servant.skills[f].singleTargetDebuffs[d].turns, servant.skills[f].singleTargetDebuffs[d].rangeNum, servant.skills[f].singleTargetDebuffs[d].times, servant.skills[f].singleTargetDebuffs[d].condition1, servant.skills[f].singleTargetDebuffs[d].condition2));
+
+                            }
+                        }
+                        if (tempStr.length > 0) {
+                            tempStr = tempStr + ", S" + (f + 1);
+                        } else {
+                            tempStr = "S" + (f + 1);
+                        }
+                    }
+                }
+                infoArray.push(tempStr, "", "", "S3", "")
+
+                resultType = waveCalc(servant, 2, atkAdd, card, bonus, npDamage, resultArray);
+                if (resultType == 0) {
+                    return "No Results: Servant does not meet damage requirments";
+                } else if (resultType == -1) {
+                    return "No Results: One or more waves do not have enemies";
+                }
+                statusTick(servant);
+                infoArray.push("Wave 3", "");
+                tempStr = "";
+                for (let f = 0; f < servant.skills.length; f++) {
+                    if (servant.skills[f].type == "multi" && servant.skills[f].cooldown <= 8 && servant.skills[f].cooldown > 5) {
+                        if (servant.skills[f].buffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].buffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].debuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].debuffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].conditionalBuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].conditionalBuffs.length; d++) {
+                                servant.conditionalBuffs.push(new Buff(servant.skills[f].conditionalBuffs[d].type, servant.skills[f].conditionalBuffs[d].value, servant.skills[f].conditionalBuffs[d].turns, servant.skills[f].conditionalBuffs[d].rangeNum, servant.skills[f].conditionalBuffs[d].times, servant.skills[f].conditionalBuffs[d].condition1, servant.skills[f].conditionalBuffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].singleTargetDebuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].singleTargetDebuffs.length; d++) {
+                                servant.singleTargetDebuffs.push(new Buff(servant.skills[f].singleTargetDebuffs[d].type, servant.skills[f].singleTargetDebuffs[d].value, servant.skills[f].singleTargetDebuffs[d].turns, servant.skills[f].singleTargetDebuffs[d].rangeNum, servant.skills[f].singleTargetDebuffs[d].times, servant.skills[f].singleTargetDebuffs[d].condition1, servant.skills[f].singleTargetDebuffs[d].condition2));
+
+                            }
+                        }
+                        if (tempStr.length > 0) {
+                            tempStr = tempStr + ", S" + (f + 1);
+                        } else {
+                            tempStr = "S" + (f + 1);
+                        }
+                    } else if (servant.skills[f].type == "one") {
+                        if (servant.skills[f].buffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].buffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].debuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].debuffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].conditionalBuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].conditionalBuffs.length; d++) {
+                                servant.conditionalBuffs.push(new Buff(servant.skills[f].conditionalBuffs[d].type, servant.skills[f].conditionalBuffs[d].value, servant.skills[f].conditionalBuffs[d].turns, servant.skills[f].conditionalBuffs[d].rangeNum, servant.skills[f].conditionalBuffs[d].times, servant.skills[f].conditionalBuffs[d].condition1, servant.skills[f].conditionalBuffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].singleTargetDebuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].singleTargetDebuffs.length; d++) {
+                                servant.singleTargetDebuffs.push(new Buff(servant.skills[f].singleTargetDebuffs[d].type, servant.skills[f].singleTargetDebuffs[d].value, servant.skills[f].singleTargetDebuffs[d].turns, servant.skills[f].singleTargetDebuffs[d].rangeNum, servant.skills[f].singleTargetDebuffs[d].times, servant.skills[f].singleTargetDebuffs[d].condition1, servant.skills[f].singleTargetDebuffs[d].condition2));
+
+                            }
+                        }
+                        if (tempStr.length > 0) {
+                            tempStr = tempStr + ", S" + (f + 1);
+                        } else {
+                            tempStr = "S" + (f + 1);
+                        }
+                    } else if (servant.skills[f].type == "battery") {
+                        if (servant.skills[f].buffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].buffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].debuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].debuffs.length; d++) {
+                                servant.buffs.push(new Buff(servant.skills[f].buffs[d].type, servant.skills[f].buffs[d].value, servant.skills[f].buffs[d].turns, servant.skills[f].buffs[d].rangeNum, servant.skills[f].buffs[d].times, servant.skills[f].buffs[d].condition1, servant.skills[f].buffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].conditionalBuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].conditionalBuffs.length; d++) {
+                                servant.conditionalBuffs.push(new Buff(servant.skills[f].conditionalBuffs[d].type, servant.skills[f].conditionalBuffs[d].value, servant.skills[f].conditionalBuffs[d].turns, servant.skills[f].conditionalBuffs[d].rangeNum, servant.skills[f].conditionalBuffs[d].times, servant.skills[f].conditionalBuffs[d].condition1, servant.skills[f].conditionalBuffs[d].condition2));
+                            }
+                        } else if (servant.skills[f].singleTargetDebuffs.length > 0) {
+                            for (let d = 0; d < servant.skills[f].singleTargetDebuffs.length; d++) {
+                                servant.singleTargetDebuffs.push(new Buff(servant.skills[f].singleTargetDebuffs[d].type, servant.skills[f].singleTargetDebuffs[d].value, servant.skills[f].singleTargetDebuffs[d].turns, servant.skills[f].singleTargetDebuffs[d].rangeNum, servant.skills[f].singleTargetDebuffs[d].times, servant.skills[f].singleTargetDebuffs[d].condition1, servant.skills[f].singleTargetDebuffs[d].condition2));
+
+                            }
+                        }
+                        if (tempStr.length > 0) {
+                            tempStr = tempStr + ", S" + (f + 1);
+                        } else {
+                            tempStr = "S" + (f + 1);
+                        }
+                    }
+                }
+                infoArray.push(tempStr, "S1", "", "", "");
+                resultType = waveCalc(servant, 3, atkAdd, card, bonus, npDamage, resultArray);
+                if (resultType == 0) {
+                    return "No Results: Servant does not meet damage requirments";
+                } else if (resultType == -1) {
+                    return "No Results: One or more waves do not have enemies";
+                }
+            }
+            while (servant.buffs.length > 0) {
+                servant.buffs.pop();
+            }
+            while (servant.debuffs.length > 0) {
+                servant.debuffs.pop();
+            }
+            while (servant.singleTargetDebuffs.length > 0) {
+                servant.singleTargetDebuffs.pop();
+            }
+            while (servant.conditionalBuffs.length > 0) {
+                servant.conditionalBuffs.pop();
+            }
+            let npLevel = 0;
+            if (resultArray.length > 0) {
+                for (let f = 1; f < resultArray.length; f = f + 7) {
+                    if (resultArray[f] > 0) {
+                        if (resultArray[f] > npLevel) {
+                            npLevel = resultArray[f];
+
+                        }
+                    } else {
+                        npLevel = 0;
+                        return "No Results";
+                    }
+                }
+                if (npLevel > 0) {
+                    infoArray[13] = Math.round(resultArray[npLevel + 1]);
+                    infoArray[20] = Math.round(resultArray[npLevel + 8]);
+                    infoArray[27] = Math.round(resultArray[npLevel + 15]);
+                }
+                while (resultArray.length > 0) {
+                    resultArray.pop();
+                }
+                return "Valid Results";
+            } else {
+                return "No Results";
+            }
+        }
+
+        function waveCalc(servant, waveNum, atkAdd, card, bonus, npDamage, resultArray) {
+            let npMultiplier = servant.np.baseDamage;
+            let npBuffUp = 1;
+            let effectiveModifier = 1;
+            let isEffective = 0;
+            let dmgAdd = 0;
+            let specialStack = 0;
+            let romanStack = 0;
+            let mentalStack = 0;
+            let atkBuffs = atkAdd;
+            let cardBuff = card;
+            let bonusModifier = bonus;
+            let npDamageBuff = npDamage;
+            let overcharge = 0;
+            let np = 0;
+            let atk = servant.atk;
+            //Adding buffs
+
+            if (servant.np.conditionalBuffs.length > 0) {
+                for (let i = 0; i < servant.np.conditionalBuffs.length; i++) {
+                    servant.conditionalBuffs.push(servant.np.conditionalBuffs[i]);
+                }
+            }
+            if (servant.np.initialDebuffs.length > 0) {
+                for (let i = 0; i < servant.np.initialDebuffs.length; i++) {
+                    servant.debuffs.push(servant.np.initialDebuffs[i]);
+                }
+            }
+            if (servant.np.singleTargetDebuffs.length > 0) {
+                for (let i = 0; i < servant.np.singleTargetDebuffs.length; i++) {
+                    servant.singleTargetDebuffs.push(servant.np.singleTargetDebuffs[i]);
+                }
+            }
+            if (servant.buffs.length > 0) {
+                for (let i = 0; i < servant.buffs.length; i++) {
+                    if (servant.buffs[i].turns != 0 && servant.buffs[i].times != 0) {
+                        if (servant.buffs[i].type == "atk" && servant.buffs[i].condition1 == "none") {
+                            atkBuffs += servant.buffs[i].value;
+                        } else if (servant.buffs[i].type == "npBuff" && servant.buffs[i].condition1 == "none" && servant.buffs[i].times != 0) {
+                            npDamageBuff += servant.buffs[i].value;
+                        } else if (servant.buffs[i].type == servant.np.type && servant.buffs[i].condition1 == "none") {
+                            cardBuff += servant.buffs[i].value;
+                        } else if (servant.buffs[i].type == "bonusMultiplier") {
+                            bonusModifier += servant.buffs[i].value;
+                        } else if (servant.buffs[i].type == "bonusDamage" && servant.buffs[i].condition1 == "none") {
+                            dmgAdd += servant.buffs[i].value;
+                        } else if (servant.buffs[i].type == "special") {
+                            specialStack++;
+                        } else if (servant.buffs[i].type == "overcharge") {
+                            overcharge++;
+                        }
+                    }
+                }
+            }
+            //overcharge order of type1, type2, condition, value, turns, activation, scale, target (array of 8 per oc)
+
+            for (let j = 0; j < servant.np.overCharge.length; j = j + 8) {
+                if (servant.np.overCharge[j] == "buff") {
+                    servant.buffs.push(new Buff(servant.np.overCharge[j + 1], servant.np.overCharge[j + 3] + servant.np.overCharge[j + 6] * overcharge, servant.np.overCharge[j + 4], servant.np.overCharge[j + 7], "none", "none", "none"));
+                    if (servant.buffs[servant.buffs.length - 1].type == "atk" && servant.buffs[servant.buffs.length - 1].condition1 == "none") {
+                        atkBuffs += servant.buffs[servant.buffs.length - 1].value;
+                    } else if (servant.buffs[servant.buffs.length - 1].type == "npBuff" && servant.buffs[servant.buffs.length - 1].condition1 == "none") {
+                        npDamageBuff += servant.buffs[servant.buffs.length - 1].value;
+                    } else if (servant.buffs[servant.buffs.length - 1].type == "bonusMultiplier" && servant.buffs[servant.buffs.length - 1].condition1 == "none") {
+                        bonusModifier += servant.buffs[servant.buffs.length - 1].value;
+                    } if (servant.buffs[servant.buffs.length - 1].type == "bonusDamage" && servant.buffs[servant.buffs.length - 1].condition1 == "none") {
+                        dmgAdd += servant.buffs[servant.buffs.length - 1].value;
+                    }
+                } else if (servant.np.overCharge[j] == "debuff") {
+                    servant.debuffs.push(new Debuff(servant.np.overCharge[j + 1], servant.np.overCharge[j + 3] + servant.np.overCharge[j + 6] * overcharge));
+                } else if (servant.np.overCharge[j] == "conditional") {
+                    servant.conditionalBuffs.push(new Buff(servant.np.overCharge[j + 1], servant.np.overCharge[j + 3] + servant.np.overCharge[j + 6] * overcharge, servant.np.overCharge[j + 4], servant.np.overCharge[j + 7], "none", servant.np.overCharge[j + 2], "none"));
+                }
+            }
+
+            const debuffRes = document.getElementsByClassName("enemyDebuffRes");
+            let debuffBool = false;
+            if (servant.debuffs.length > 0) {
+                for (let i = 0; i < servant.debuffs.length; i++) {
+                    if (servant.debuffs[i].rangeNum == 1) {
+                        if (servant.debuffs[i].type == "defense") {
+                            atkBuffs += servant.debuffs[i].value;
+                        } else if (servant.debuffs[i].type == servant.np.type) {
+                            cardBuff += servant.debuffs[i].value;
+                        } else if (servant.debuffs[i].type == "roman") {
+                            romanStack++;
+                        } else if (servant.debuffs[i].type == "mentalDebuff") {
+                            mentalStack++;
+                        }
+                    }
+                }
+            }
+
+            //Single Target Debuff algorithm
+            const enemyHP = document.getElementsByClassName('enemyHP');
+            const enemyClass = document.getElementsByClassName('enemyClass');
+            const enemyAttribute = document.getElementsByClassName('enemyAttribute');
+            const enemyTrait1 = document.getElementsByClassName('e1trait');
+            const enemyTraits = [document.getElementsByClassName('e1trait'), document.getElementsByClassName('e2trait'),
+            document.getElementsByClassName('e3trait'), document.getElementsByClassName('e4trait'),
+            document.getElementsByClassName('e5trait'), document.getElementsByClassName('e6trait'),
+            document.getElementsByClassName('e7trait'), document.getElementsByClassName('e8trait'),
+            document.getElementsByClassName('e9trait')];
+            let enemyTarget = "none"
+            for (let i = (waveNum * 3) - 2; i < waveNum * 3; i++) { //Finds highest HP enemy to use debuffs on
+                if ((enemyTarget != "none" && enemyHP[i].value > enemyHP[enemyTarget].value) || (enemyTarget == "none" && enemyHP[i].value > 0)) {
+                    enemyTarget = i;
+                }
+            }
+            const hpLeft = [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]];
+            let bonuses = 0;
+            let cardDebuffs = 0;
+            let defenseDebuffs = 0;
+            let damage = 0;
+            let enemyNum = 0;
+
+            for (let i = (waveNum * 3) - 3; i < waveNum * 3; i++) {
+                if (enemyHP[i].value > 0 && enemyTarget != "none") {
+                    //Single enemy debuffs and enemy conditional buffs
+                    if (enemyTarget == i && servant.singleTargetDebuffs.length > 0) {
+                        for (let j = 0; j < servant.singleTargetDebuffs.length; j++) {
+                            if (servant.singleTargetDebuffs[j].type == "defense") {
+                                atkBuffs += servant.singleTargetDebuffs[j].value;
+                                defenseDebuffs += servant.singleTargetDebuffs[j].value;
+                            } else if (servant.singleTargetDebuffs[j].type == servant.np.type) {
+                                cardBuff += servant.singleTargetDebuffs[j].value;
+                                cardDebuffs += servant.singleTargetDebuffs[j].value;
+                            }
+                        }
+                    }
+                    if (servant.conditionalBuffs.length > 0) {
+                        for (let j = 0; j < servant.conditionalBuffs.length; j++) {
+                            if (servant.conditionalBuffs[j].type == "bonusMultiplier") {
+                                if (servant.conditionalBuffs[j].condition1 == enemyClass[i].value) {
+                                    bonusModifier += servant.conditionalBuffs[j].value;
+                                    bonuses += servant.conditionalBuffs[j].value;
+                                } else if (servant.conditionalBuffs[j].condition1 == enemyAttribute[i].value) {
+                                    bonusModifier += servant.conditionalBuffs[j].value;
+                                    bonuses += servant.conditionalBuffs[j].value;
+                                } else if (enemyTraits[i][servant.conditionalBuffs[j].condition1].checked == true) {
+                                    bonusModifier += servant.conditionalBuffs[j].value;
+                                    bonuses += servant.conditionalBuffs[j].value;
+                                } else if (enemyTraits[i][servant.conditionalBuffs[j].condition2].checked == true) {
+                                    bonusModifier += servant.conditionalBuffs[j].value;
+                                    bonuses += servant.conditionalBuffs[j].value;
+                                }
+                            } else if (servant.conditionalBuffs[j].type == "effectiveModifier") {
+                                if (servant.conditionalBuffs[j].condition1 == enemyClass[i].value) {
+                                    effectiveModifier = servant.conditionalBuffs[j].value;
+                                    isEffective = 1;
+                                } else if (servant.conditionalBuffs[j].condition1 == enemyAttribute[i].value) {
+                                    effectiveModifier = servant.conditionalBuffs[j].value;
+                                    isEffective = 1;
+                                } else if (isNaN(servant.conditionalBuffs[j].condition1) == false) {
+                                    if (enemyTraits[i][servant.conditionalBuffs[j].condition1].checked == true) {
+                                        isEffective = 1;
+                                        effectiveModifier = servant.conditionalBuffs[j].value;
+                                    }
+                                } else if (isNaN(servant.conditionalBuffs[j].condition2) == false) {
+                                    if (enemyTraits[i][servant.conditionalBuffs[j].condition2].checked == true) {
+                                        isEffective = 1;
+                                        effectiveModifier = servant.conditionalBuffs[j].value;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    //Class advantages
+                    if (servant.servantClass == "Saber" && (enemyClass[i].value == "Lancer" || enemyClass[i].value == "Beserker")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Lancer" && (enemyClass[i].value == "Archer" || enemyClass[i].value == "Beserker")) {
+                        classAdvantage = 2;
+                    }
+                    else if (servant.servantClass == "Archer" && (enemyClass[i].value == "Saber" || enemyClass[i].value == "Beserker")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Caster" && (enemyClass[i].value == "Assassin" || enemyClass[i].value == "Beserker")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Assassin" && (enemyClass[i].value == "Rider" || enemyClass[i].value == "Beserker")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Rider" && (enemyClass[i].value == "Caster" || enemyClass[i].value == "Beserker")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Beserker" && enemyClass[i].value != "Foreigner") {
+                        classAdvantage = 1.5;
+                    } else if (servant.servantClass == "Ruler" && (enemyClass[i].value == "Moon Cancer" || enemyClass[i].value == "Beserker" || enemyClass[i].value == "Beast")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Avenger" && (enemyClass[i].value == "Ruler" || enemyClass[i].value == "Beserker" || enemyClass[i].value == "Beast")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Moon Cancer" && (enemyClass[i].value == "Avenger" || enemyClass[i].value == "Beserker" || enemyClass[i].value == "Beast")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Foreigner" && (enemyClass[i].value == "Foreigner" || enemyClass[i].value == "Beserker" || enemyClass[i].value == "Beast" || enemyClass[i].value == "Pretender")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Pretender" && (enemyClass[i].value == "Alter Ego" || enemyClass[i].value == "Beserker" || enemyClass[i].value == "Beast")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Alter Ego" && (enemyClass[i].value == "Foreigner" || enemyClass[i].value == "Beserker" || enemyClass[i].value == "Beast")) {
+                        classAdvantage = 2;
+                    } else if (servant.servantClass == "Alter Ego" && (enemyClass[i].value == "Caster" || enemyClass[i].value == "Assassin" || enemyClass[i].value == "Rider")) {
+                        classAdvantage = 1.5;
+                    } else if (servant.servantClass == "Pretender" && (enemyClass[i].value == "Saber" || enemyClass[i].value == "Archer" || enemyClass[i].value == "Lancer")) {
+                        classAdvantage = 1.5;
+                    } else if (servant.servantClass == "Beast" && (enemyClass[i].value == "Saber" || enemyClass[i].value == "Archer" || enemyClass[i].value == "Lancer"
+                        || enemyClass[i].value == "Caster" || enemyClass[i].value == "Rider" || enemyClass[i].value == "Assassin")) {
+                        classAdvantage = 1.5;
+                    } else if (servant.servantClass == "Saber" && (enemyClass[i].value == "Archer" || enemyClass[i].value == "Ruler")) {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Lancer" && (enemyClass[i].value == "Saber" || enemyClass[i].value == "Ruler")) {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Archer" && (enemyClass[i].value == "Lancer" || enemyClass[i].value == "Ruler")) {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Caster" && (enemyClass[i].value == "Rider" || enemyClass[i].value == "Ruler")) {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Rider" && (enemyClass[i].value == "Assassin" || enemyClass[i].value == "Ruler")) {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Assassin" && (enemyClass[i].value == "Caster" || enemyClass[i].value == "Ruler")) {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Ruler" && enemyClass[i].value == "Avenger") {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Avenger" && enemyClass[i].value == "Moon Cancer") {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Moon Cancer" && enemyClass[i].value == "Ruler") {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Beserker" && enemyClass[i].value == "Foreigner") {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Foreigner" && enemyClass[i].value == "Alter Ego") {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Alter Ego" && (enemyClass[i].value == "Pretender" || enemyClass[i].value == "Saber" || enemyClass[i].value == "Archer" || enemyClass[i].value == "Lancer")) {
+                        classAdvantage = 0.5;
+                    } else if (servant.servantClass == "Pretender" && (enemyClass[i].value == "Foreigner" || enemyClass[i].value == "Rider" || enemyClass[i].value == "Caster" || enemyClass[i].value == "Assassin")) {
+                        classAdvantage = 0.5;
+                    } else {
+                        classAdvantage = 1;
+                    }
+
+                    //Attribute advantage
+                    if ((servant.attribute == "Man" && enemyAttribute[i].value == "Sky")
+                        || (servant.attribute == "Sky" && enemyAttribute[i].value == "Earth") ||
+                        (servant.attribute == "Earth" && enemyAttribute[i].value == "Man") ||
+                        (servant.attribute == "Star" && enemyAttribute[i].value == "Beast") ||
+                        (servant.attribute == "Beast" && enemyAttribute[i].value == "Star")) {
+                        attributeAdvantage = 1.1;
+                    } else if ((servant.attribute == "Man" && enemyAttribute[i].value == "Earth") ||
+                        (servant.attribute == "Sky" && enemyAttribute[i].value == "Man") ||
+                        (servant.attribute == "Earth" && enemyAttribute[i].value == "Sky")) {
+                        attributeAdvantage = 0.9;
+                    } else {
+                        attributeAdvantage = 1;
+                    }
+
+                    //NP level decision algorithm
+                    damage = (atk * servant.np.baseDamage * (1 + cardBuff) *
+                        classAdvantage * attributeAdvantage * 0.9 * 0.23 * (1 + atkBuffs) *
+                        (bonusModifier + 1 + (npDamageBuff * npBuffUp)) * (1 + ((effectiveModifier - 1) *
+                            isEffective))) + dmgAdd;
+                    if (damage < enemyHP[i].value) {
+                        hpLeft[enemyNum][0] = enemyHP[i].value - damage;
+                    }
+                    for (let j = 0; j < 3; j++) {
+                        npMultiplier = npMultiplier + (servant.np.damageScale / (2 ** j));
+                        damage = (atk * npMultiplier * (1 + cardBuff) *
+                            classAdvantage * attributeAdvantage * 0.9 * 0.23 * (1 + atkBuffs) *
+                            (bonusModifier + 1 + (npDamageBuff * npBuffUp)) * (1 + ((effectiveModifier - 1) *
+                                isEffective))) + dmgAdd;
+                        if (damage < enemyHP[i].value) {
+                            hpLeft[enemyNum][j + 1] = enemyHP[i].value - damage;
+                        }
+                    }
+
+                    npMultiplier = npMultiplier + (servant.np.damageScale / (2 ** 2));
+                    damage = (atk * npMultiplier * (1 + cardBuff) *
+                        classAdvantage * attributeAdvantage * 0.9 * 0.23 * (1 + atkBuffs) *
+                        (bonusModifier + 1 + (npDamageBuff * npBuffUp)) * (1 + ((effectiveModifier - 1) *
+                            isEffective))) + dmgAdd;
+                    if (damage < enemyHP[i].value) {
+                        hpLeft[enemyNum][4] = enemyHP[i].value - damage;
+                    }
+                    //Resetting conditional buffs and single target debuffs for next enemy
+                    atkBuffs -= defenseDebuffs;
+                    cardBuff -= cardDebuffs;
+                    bonusModifier -= bonuses;
+                    effectiveModifier = 1;
+                    isEffect = 0;
+                } else if (enemyTarget == "none") {
+                    resultArray.push(np, 0, -1, -1, -1, -1, -1); //Indicates not valid
+                    return -1;
+                }
+                enemyNum++;
+            }
+            //NP Level Algorithm
+            let highest = 0;
+            let valid = true;
+            let minNP = 0;
+            let index = "none";
+            for (let i = 0; i < 5; i++) {
+                for (let j = 0; j < 3; j++) {
+                    if (hpLeft[j][i] > 0) {
+                        if (highest == 0) {
+                            if (hpLeft[j][i] < 15000 && hpLeft[j][i] > 0) { //Damage manageable with normal cards
+                                highest = hpLeft[j][i];
+                                index = j;
+                            } else if (hpLeft[j][i] > 15000) { //ends enemy parse loop due to enemy with too much hp
+                                j = 3;
+                                valid = false;
+                            }
+                        } else { //ends enemy parse loop due to 2 many enemies alive
+                            j = 3;
+                            index = "none"
+                            valid = false;
+                        }
+                    } else {
+                        index = j;
+                    }
+                }
+                if (valid == true) { //True flag marks valid npLevel and ends np for loop
+                    if (minNP == 0) {
+                        minNP = i + 1;
+                    }
+                } else { //false flag resets and attempts to increase npLevel tests
+                    highest = 0;
+                    valid = true;
+                }
+            }
+
+            if (servant.np.afterBuffs.length > 0) {
+                for (let i = 0; i < servant.np.afterBuffs.length; i++) {
+                    servant.buffs.push(servant.np.afterBuffs[i]);
+                }
+            }
+            if (servant.np.afterConditionBuffs.length > 0) {
+                for (let i = 0; i < servant.np.afterConditionBuffs.length; i++) {
+                    servant.conditionalBuffs.push(servant.np.afterConditionBuffs[i]);
+                }
+            }
+            if (overcharge > 0 && servant.np.oc1Activation == 1 && servant.np.oc1Turns > 1) {
+                if (servant.np.oc1Type1 == "buff") {
+                    servant.buffs.push(new Buff(servant.np.oc1Type2, servant.np.oc1Value + servant.np.oc1Scale * overcharge, servant.np.oc1Turns, servant.np.oc1Target, "none", "none", "none"));
+                } else if (servant.np.oc1Type1 == "conditional") {
+                    servant.conditionalBuffs.push(new Buff(servant.np.oc1Type2, servant.np.oc1Value + servant.np.oc1Scale * overcharge, servant.np.oc1Turns, servant.np.oc1Target, "none", "none", "none"));
+                }
+            }
+            if (minNP > 0 && index != "none") { //Returns minimum nplevel and highest remaining HP enemy
+                resultArray.push(np, minNP, hpLeft[index][0], hpLeft[index][1], hpLeft[index][2], hpLeft[index][3], hpLeft[index][4]);
+                return 1;
+            } else if (minNP == 0) { //Returns 
+                resultArray.push(np, 0, -1, -1, -1, -1, -1); //Indicates not valid
+                return 0; //-1 is no enemies, 0 is failed to defeat, 1 valid result
+            }
+        }
+
+
+        //Servant Information
+        const sabers = [];
+        const lancers = [];
+        const archers = [];
+        const riders = [];
+        const assassins = [];
+        const casters = [];
+        const beserkers = [];
+        const foreigners = [];
+        const alterEgos = [];
+        const pretenders = [];
+        const avengers = [];
+        const rulers = [];
+        const moonCancers = [];
+        const servants = [];
+
+
+        // teams are added by ID, then battery Requirment, and Mystic Code and by multiples of 3
+        //overcharge order of type1, type2, condition, value, turns, activation, scale, target (array of 8 per oc)
+        /*Buff Types are: atk, Buster, Arts, Quick, overcharge, npGen, NP Regen, bonusMultiplier, bonusDamage, effectiveModifier, special (likes, Heroic King) */
+        /*rangeNum: (0, Self) (1, Targeted) (2, AOE) (3, All but self)*/
+        /*Debuff types: defense, Buster, Arts, Quick, mentalDebuff, burn, curse, roman)*/
+        /*rangeNum (0, Single) (1, AOE)*/
+        const saber2 = new Servant("Artoria (Saber)", 0, "Saber", "Earth", 12221, "10/10/10");
+        saber2.skills.push(new Skill("multi", 5, 0, 0), new Skill("one", 5, 0, 0), new Skill("battery", 5, 30, 0));
+        saber2.skills[0].buffs.push(new Buff("atk", 0.18, 3, 2, "none", "none", "none"));
+        saber2.skills[1].buffs.push(new Buff("Buster", 0.5, 1, 0, "none", "none", "none"));
+        saber2.np = new NP("Buster", 4, 1, 1);
+        saber2.np.overCharge.push("battery", "none", "none", 20, "none", 1, 7.5, 0, 0);
+        saber2.teams.push("KK", 100, "Atlus");
+        servants.push(saber2);
+        const saber76 = new Servant("Mordred (Saber)", 1, "Saber", "Earth", 12723, "10/x/10");
+        saber76.skills.push(new Skill("multi", 5, 0, 0), new Skill("crits", 5, 0, 0), new Skill("battery", 6, 30, 0));
+        saber76.skills[0].buffs.push(new Buff("Buster", 0.5, 3, 0, 3, "none", "none"), new Buff("atk", 0.2, 3, 0, "none", "none", "none"));
+        saber76.teams.push("KK", 100, "Atlus");
+        saber76.np = new NP("Buster", 4, 1, 1);
+        saber76.np.overCharge.push("conditional", "effectiveModifier", 0, 1.8, 1, 0, 0.1, 0);
+        servants.push(saber76);
+        const saber299 = new Servant("Ibuki (Saber)", 2, "Saber", "Sky", 13709, "10/10/10");
+        saber299.skills.push(new Skill("battery", 6, 50, 0), new Skill("multi", 5, 0, 0), new Skill("multi", 6, 0, 0));
+        saber299.skills[0].buffs.push(new Buff("atk", 0.4, 3, 0, 3, "none", "none"));
+        saber299.skills[1].buffs.push(new Buff("Buster", 0.3, 3, 0, "none", "none", "none"));
+        saber299.skills[2].buffs.push(new Buff("bonusMultiplier", 0.5, 3, 0, "none", 31, "none"));
+        saber299.np = new NP("Buster", 3, 1, 1);
+        saber299.buffs.push(new Buff("Buster", 0.12, "none", 0, "none", "none", "none"), new Buff("bonusDamage", 250, "none", 0, "none", "none", "none"))
+        saber299.teams.push("KK", 100, "Atlus");
+        servants.push(saber299);
+        const lancer196 = new Servant("Ereshkigal", 3, "Lancer", "Earth", 11343, "x/10/x");
+        lancer196.skills.push(new Skill("survive", 8, 0, 0), new Skill("battery", 6, 50, 0), new Skill("special", 8, 0, 0));
+        lancer196.skills[1].buffs.push(new Buff("Buster", 0.5, 1, 0, "none", "none", "none"));
+        lancer196.np = new NP("Buster", 4, 1, 1);
+        lancer196.np.initialBuffs.push(new Buff("effectiveModifier", 1.5, 1, 0, "none", "Earth", "none"));
+        lancer196.np.overCharge.push("buff", "Buster", "none", 0.1, 1, 0, 0.1, 0);
+        lancer196.np.afterBuffs.push(new Buff("atk", 0.2, 3, 2, "none", "none", "none"));
+        lancer196.buffs.push(new Buff("bonusDamage", 225, "none", 0, "none", "none", "none"));
+        lancer196.teams.push("KK", 100, "Atlus");
+        servants.push(lancer196);
+        const lancer119 = new Servant("Artoria (Lancer)", 4, "Lancer", "Sky", 11095, "10/10/10");
+        lancer119.skills.push(new Skill("one", 5, 0, 0), new Skill("multi", 5, 0, 0), new Skill("battery", 6, 50, 0));
+        lancer119.skills[0].buffs.push(new Buff("Buster", 0.5, 1, 0, "none", "none", "none"));
+        lancer119.skills[0].conditionalBuffs.push(new Buff("bonusMultiplier", 0.5, 1, 0, "none", 2, "none"), new Buff("bonusMultiplier", 0.5, 1, 0, "none", 7, "none"));
+        lancer119.skills[1].buffs.push(new Buff("atk", 0.18, 3, 2, "none", "none", "none"));
+        lancer119.np = new NP("Buster", 3, 1, 1);
+        lancer119.np.overCharge.push("battery", "none", "none", 20, "none", 1, 10, 0);
+        lancer119.teams.push("KK", 100, "Atlus");
+        servants.push(lancer119);
+
+        const archer142 = new Servant("Ishtar (Archer)", 5, "Archer", "Sky", 13252, "10/10/10");
+        archer142.skills.push(new Skill("multi", 5, 0, 0), new Skill("battery", 6, 50, 0), new Skill("delay", 4, 0, 3));
+        archer142.skills[0].buffs.push(new Buff("atk", 0.2, 3, 2, "none", "none", "none"));
+        archer142.skills[2].delayBuffs.push(new Buff("atk", 0.5, 1, 0, "none", "none", "none"));
+        archer142.np = new NP("Buster", 4, 1, 1);
+        archer142.np.overCharge.push("buff", "Buster", "none", 0.2, 1, 0, 0.1, 0);
+        archer142.buffs.push(new Buff("damageBonus", 225, "none", 0, "none", "none", "none"));
+        archer142.teams.push("KK", 100, "Atlus");
+        servants.push(archer142);
+        const caster175 = new Servant("Nero (Caster)", 6, "Caster", "Man", 11857, "10/10/10");
+        caster175.skills.push(new Skill("battery", 6, 50, 0), new Skill("multi", 5, 0, 0), new Skill("multi", 7, 0, 0));
+        caster175.skills[1].buffs.push(new Buff("atk", 0.3, 3, 0, "none", "none", "none"));
+        caster175.skills[2].buffs.push(new Buff("atk", 0.5, 3, 1, "none", "none", "none"));
+        caster175.np = new NP("Buster", 3, 1, 1);
+        caster175.np.overCharge.push("buff", "npBuff", "none", 0.2, 1, 0, 0.1, 0);
+        caster175.teams.push("KK", 100, "Atlus");
+        servants.push(caster175);
+        const rider65 = new Servant("Drake", 7, "Rider", "Star", 12326, "10/10/10");
+        rider65.skills.push(new Skill("one", 5, 0, 0), new Skill("multi", 6, 0, 0), new Skill("battery", 6, 50, 0));
+        rider65.skills[0].buffs.push(new Buff("npBuff", 0.17, 1, 2, "none", "none", "none"), new Buff("atk", 0.17, 1, 2, "none", "none", "none"));
+        rider65.skills[1].buffs.push(new Buff("Buster", 0.2, 3, 0, "none", "none", "none"));
+        rider65.np = new NP("Buster", 4, 1, 1);
+        rider65.teams.push("KK", 100, "Atlus");
+        servants.push(rider65);
+        const beserker309 = new Servant("Morgan", 8, "Beserker", "Earth", 13193, "10/10/x");
+        beserker309.skills.push(new Skill("battery", 6, 30, 0), new Skill("battery", 5, 20, 1), new Skill("crit", 9, 0, 0));
+        beserker309.skills[0].buffs.push(new Buff("atk", 0.2, 3, 2, "none", "none", "none"));
+        beserker309.skills[0].debuffs.push(new Debuff("defense", 0.2));
+        beserker309.buffs.push(new Buff("Buster", 0.08, "none", 0, "none", "none", "none"));
+        beserker309.np = new NP("Buster", 3, 1, 1);
+        beserker309.np.conditionalBuffs.push(new Buff("bonusMultiplier", 0.5, 1, 0, "none", 17, 8), new Buff("effectiveModifier", 1.5, 1, 0, "none", "Man", "none"));
+        beserker309.np.afterBuffs.push(new Buff("npOC", 1, 3, 2, 1, "none", "none"));
+        beserker309.teams.push("KK", 100, "Atlus");
+        servants.push(beserker309);
+        const moonCancer220 = new Servant("BB (Summer)", 9, "Moon Cancer", "Earth", 12182, "x/10/x");
+        moonCancer220.skills.push(new Skill("crit", 7, 0, 0), new Skill("battery", 7, 50, 0), new Skill("crit", 8, 0, 0));
+        moonCancer220.skills[1].buffs.push(new Buff("Buster", 0.2, 3, 0, "none", "none", "none"), new Buff("npBuff", 0.5, 3, 0, "none", "none", "none"));
+        moonCancer220.buffs.push(new Buff("damageBonus", 250, "none", 0, "none", "none", "none"));
+        moonCancer220.np = new NP("Buster", 3, 1, 1);
+        moonCancer220.teams.push("KK", 100, "Atlus");
+        servants.push(moonCancer220);
+        const ruler265 = new Servant("Artoria (Ruler)", 10, "Ruler", "Sky", 10593, "10/x/10");
+        ruler265.skills.push(new Skill("battery", 6, 40, 0), new Skill("crit", 7, 0, 0), new Skill("multi", 6, 0, 0));
+        ruler265.skills[0].delayBuffs.push(new Buff("atk", 0.3, 1, 0, "none", "none", "none"));
+        ruler265.skills[2].buffs.push(new Buff("atk", 0.4, 3, 0, "none", "none", "none"));
+        ruler265.np = new NP("Buster", 3, 1, 1);
+        ruler265.np.initialBuffs.push(new Buff("Buster", 0.4, 1, 0, "none", "none", "none"));
+        ruler265.np.battery.push(20, 0);
+        ruler265.teams.push("KK", 100, "Atlus");
+        servants.push(ruler265);
+        const foreigner289 = new Servant("Abigail (Summer)", 11, "Foreigner", "Earth", 12781, "10/x/10");
+        foreigner289.skills.push(new Skill("one", 6, 0, 0), new Skill("none", 9, 0, 0), new Skill("battery", 6, 50, 0));
+        foreigner289.skills[0].singleTargetDebuffs.push(new Debuff("defense", 0.5));
+        foreigner289.skills[2].singleTargetDebuffs.push(new Debuff("Buster", 0.3));
+        foreigner289.buffs.push(new Buff("Buster", 0.09, "none", 0, "none", "none", "none"), new Buff("bonusDamage", 185, "none", 0, "none", "none", "none"));
+        foreigner289.np = new NP("Buster", 3, 1, 1);
+        foreigner289.teams.push("KK", 100, "Atlus");
+        servants.push(foreigner289);
+    </script>
+
+
+    <header class="center">
+        <h1>FGO Event Comp NP Damage Calculator <span style="white-space: nowrap">(Beta v1.00)</span></h1>
+
+    </header>
+    <h2 class="center">Introduction</h2>
+    <section class="center">
+        <p>Welcome to the FGO Event Party Comp Damage Calculator! This calculator will allow you to enter enemy node
+            waves, servant information, team comps, and event CE information to calculate efficient team compositions.
+            This calculator will specify required NP levels, mystic codes, skill orders, and CE requirments for your
+            desired event node.
+        </p>
+    </section>
+    <h2 class="center">Disclaimers</h2>
+    <section class="center">
+        <ul class="myUL">
+            <li>All servants are assumed to have NP charge, buff, and enemy debuff skills at rank 10</li>
+            <li>All servants available are assumed to have max atk foes (not including golden foes)</li>
+            <li>All servants available have either single target or AOE damage NPs</li>
+            <li>Any skill or NP upgrades available on the NA server are applied</li>
+            <li>Grails levels will not be calculated</li>
+            <li>Face-card damage and crits will not be taken into account</li>
+            <li>Buffs and debuffs will not be taken into account if success rate is not 100%</li>
+        </ul>
+    </section>
+
+    <h2 class="center">Enemy Information</h2>
+    <section class="center">
+        <!--Enemy Information is entered and algorithm determines whether single target or AOE NPs are needed are also calculates enemy NP gain values for arts servants-->
+
+        <p>For each wave, leave HP at 0 for no enemy at that position.</p>
+        <!-- <label for="waveNum">Number of Waves</label> 
+        <select name="options" id="waveNum">
+            <option value=3>3</option>
+            <option value=2>2</option>
+        </select> -->
+        <h4>Wave 1</h4>
+        <div class="enemyWave">
+            <div class="enemies inputs">
+                <div class="inputLabel">
+                    <label for="e1lass">Class</label>
+                    <select name="options" id="e1Class" class="enemyClass">
+                        <option value="Saber">Saber</option>
+                        <option value="Lancer">Lancer</option>
+                        <option value="Archer">Archer</option>
+                        <option value="Rider">Rider</option>
+                        <option value="Caster">Caster</option>
+                        <option value="Assassin">Assassin</option>
+                        <option value="Beserker">Beserker</option>
+                        <option value="Ruler">Ruler</option>
+                        <option value="Avenger">Avenger</option>
+                        <option value="Foreigner">Foreigner</option>
+                        <option value="Moon Cancer">Moon Cancer</option>
+                        <option value="Alter Ego">Alter Ego</option>
+                        <option value="Pretender">Pretender</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <label for="e1HP">HP</label>
+                    <input type="number" id="e1HP" step="1000" value=0 class="enemyHP" min=0>
+                </div>
+                <div class="inputLabel">
+                    <label for="e1atrbt">Attribute</label>
+                    <select name="options" id="e1atrbt" class="enemyAttribute">
+
+                        <option value="Man">Man</option>
+                        <option value="Earth">Earth</option>
+                        <option value="Sky">Sky</option>
+                        <option value="Star">Star</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <input type="checkbox" id="e1debuffRes" class="enemyDebuffRes">
+                    <label for="e1debuffRes">Debuff Res/Immune</label>
+                </div>
+                <div class="inputLabel">
+                    <details>
+                        <summary>Traits</summary>
+                        <ul class="myUL">
+                            <li><input type="checkbox" id="e1arthur" class="e1trait">
+                                <!--Ordered by numbers so Arthur is 0 with total of 33-->
+                                <label for="e1arthur">Arthur</label>
+                            </li>
+                            <li><input type="checkBox" id="e1brynhilds" class="e1trait">
+                                <label for="e1brynhilds">Brynhild's Beloved</label>
+                            </li>
+                            <li><input type="checkBox" id="e1chaotic" class="e1trait">
+                                <label for="e1chaotic">Chaotic</label>
+                            </li>
+                            <li><input type="checkBox" id="e1demon" class="e1trait">
+                                <label for="e1demon">Demon</label>
+                            </li>
+                            <li><input type="checkBox" id="e1demonic" class="e1trait">
+                                <label for="e1demonic">Demonic</label>
+                            </li>
+                            <li><input type="checkBox" id="e1divine" class="e1trait">
+                                <label for="e1divine">Divine</label>
+                            </li>
+                            <li><input type="checkBox" id="e1dragon" class="e1trait">
+                                <label for="e1dragon">Dragon</label>
+                            </li>
+                            <li><input type="checkBox" id="e1evil" class="e1trait">
+                                <label for="e1evil">Evil</label>
+                            </li>
+                            <li><input type="checkBox" id="e1fairy" class="e1trait">
+                                <label for="e1fairy">Fairy</label>
+                            </li>
+                            <li><input type="checkBox" id="e1female" class="e1trait">
+                                <label for="e1female">Female</label>
+                            </li>
+                            <li><input type="checkBox" id="e1genji" class="e1trait">
+                                <label for="e1genji">Genji</label>
+                            </li>
+                            <li><input type="checkBox" id="e1giant" class="e1trait">
+                                <label for="e1giant">Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e1good" class="e1trait">
+                                <label for="e1good">Good</label>
+                            </li>
+                            <li><input type="checkBox" id="e1greekMM" class="e1trait">
+                                <label for="e1greekMM">Greek Mythology Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e1human" class="e1trait">
+                                <label for="e1human">Human</label>
+                            </li>
+                            <li><input type="checkBox" id="e1humanoid" class="e1trait">
+                                <label for="e1humanoid">Humanoid</label>
+                            </li>
+                            <li><input type="checkBox" id="e1king" class="e1trait">
+                                <label for="e1king">King</label>
+                            </li>
+                            <li><input type="checkBox" id="e1KOTR" class="e1trait">
+                                <label for="e1KOTR">Knights of the Round</label>
+                            </li>
+                            <li><input type="checkBox" id="e1lawful" class="e1trait">
+                                <label for="e1lawful">Lawful</label>
+                            </li>
+                            <li><input type="checkBox" id="e1lowRarity" class="e1trait">
+                                <label for="e1lowRarity">Low Rarity</label>
+                            </li>
+                            <li><input type="checkBox" id="e1male" class="e1trait">
+                                <label for="e1male">Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e1mechanical" class="e1trait">
+                                <label for="e1mechanical">Mechanical</label>
+                            </li>
+                            <li><input type="checkBox" id="e1neutral" class="e1trait">
+                                <label for="e1neutral">Neutral</label>
+                            </li>
+                            <li><input type="checkBox" id="e1oni" class="e1trait">
+                                <label for="e1oni">Oni</label>
+                            </li>
+                            <li><input type="checkBox" id="e1riding" class="e1trait">
+                                <label for="e1riding">Riding</label>
+                            </li>
+                            <li><input type="checkBox" id="e1roman" class="e1trait">
+                                <label for="e1roman">Roman</label>
+                            </li>
+                            <li><input type="checkBox" id="e1saberFace" class="e1trait">
+                                <label for="e1saberFace">Saber Face</label>
+                            </li>
+                            <li><input type="checkBox" id="e1servant" class="e1trait">
+                                <label for="e1servant">Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e1shadowServant" class="e1trait">
+                                <label for="e1shadowServant">Shadow Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e1superGiant" class="e1trait">
+                                <label for="e1superGiant">Super Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e1TtH" class="e1trait">
+                                <label for="e1TtH">Threat to Humanity</label>
+                            </li>
+                            <li><input type="checkBox" id="e1undead" class="e1trait">
+                                <label for="e1undead">Undead</label>
+                            </li>
+                            <li><input type="checkBox" id="e1wildBeast" class="e1trait">
+                                <label for="e1wildBeast">Wild Beast</label>
+                            </li>
+                            <li><input type="checkBox" id="e1EEN" class="e1trait">
+                                <label for="e1EEN">Enuma Elish Nullification</label>
+                            </li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+
+            <div class="enemies inputs">
+                <label for="e2lass">Class</label>
+                <select name="options" id="e2Class" class="enemyClass">
+                    <option value="Saber">Saber</option>
+                    <option value="Lancer">Lancer</option>
+                    <option value="Archer">Archer</option>
+                    <option value="Rider">Rider</option>
+                    <option value="Caster">Caster</option>
+                    <option value="Assassin">Assassin</option>
+                    <option value="Beserker">Beserker</option>
+                    <option value="Ruler">Ruler</option>
+                    <option value="Avenger">Avenger</option>
+                    <option value="Foreigner">Foreigner</option>
+                    <option value="Moon Cancer">Moon Cancer</option>
+                    <option value="Alter Ego">Alter Ego</option>
+                    <option value="Pretender">Pretender</option>
+                    <option value="Beast">Beast</option>
+                </select>
+                <div class="inputLabel">
+                    <label for="e2HP">HP</label>
+                    <input type="number" id="e2HP" step="1000" value=0 class="enemyHP" min=0>
+                </div>
+                <div class="inputLabel">
+                    <label for="e2atrbt">Attribute</label>
+                    <select name="options" id="e2atrbt" class="enemyAttribute">
+
+                        <option value="Man">Man</option>
+                        <option value="Earth">Earth</option>
+                        <option value="Sky">Sky</option>
+                        <option value="Star">Star</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <input type="checkbox" id="e2debuffRes" class="enemyDebuffRes">
+                    <label for="e2debuffRes">Debuff Res/Immune</label>
+                </div>
+                <div class="inputLabel">
+                    <details>
+                        <summary>Traits</summary>
+                        <ul class="myUL">
+                            <li><input type="checkbox" id="e2arthur" class="e2trait">
+                                <!--Ordered by numbers so Arthur is 0 with total of 33-->
+                                <label for="e2arthur">Arthur</label>
+                            </li>
+                            <li><input type="checkBox" id="e2brynhilds" class="e2trait">
+                                <label for="e2brynhilds">Brynhild's Beloved</label>
+                            </li>
+                            <li><input type="checkBox" id="e2chaotic" class="e2trait">
+                                <label for="e2chaotic">Chaotic</label>
+                            </li>
+                            <li><input type="checkBox" id="e2demon" class="e2trait">
+                                <label for="e2demon">Demon</label>
+                            </li>
+                            <li><input type="checkBox" id="e2demonic" class="e2trait">
+                                <label for="e2demonic">Demonic</label>
+                            </li>
+                            <li><input type="checkBox" id="e2divine" class="e2trait">
+                                <label for="e2divine">Divine</label>
+                            </li>
+                            <li><input type="checkBox" id="e2dragon" class="e2trait">
+                                <label for="e2dragon">Dragon</label>
+                            </li>
+                            <li><input type="checkBox" id="e2evil" class="e2trait">
+                                <label for="e2evil">Evil</label>
+                            </li>
+                            <li><input type="checkBox" id="e2fairy" class="e2trait">
+                                <label for="e2fairy">Fairy</label>
+                            </li>
+                            <li><input type="checkBox" id="e2female" class="e2trait">
+                                <label for="e2female">Female</label>
+                            </li>
+                            <li><input type="checkBox" id="e2genji" class="e2trait">
+                                <label for="e2genji">Genji</label>
+                            </li>
+                            <li><input type="checkBox" id="e2giant" class="e2trait">
+                                <label for="e2giant">Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e2good" class="e2trait">
+                                <label for="e2good">Good</label>
+                            </li>
+                            <li><input type="checkBox" id="e2greekMM" class="e2trait">
+                                <label for="e2greekMM">Greek Mythology Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e2human" class="e2trait">
+                                <label for="e2human">Human</label>
+                            </li>
+                            <li><input type="checkBox" id="e2humanoid" class="e2trait">
+                                <label for="e2humanoid">Humanoid</label>
+                            </li>
+                            <li><input type="checkBox" id="e2king" class="e2trait">
+                                <label for="e2king">King</label>
+                            </li>
+                            <li><input type="checkBox" id="e2KOTR" class="e2trait">
+                                <label for="e2KOTR">Knights of the Round</label>
+                            </li>
+                            <li><input type="checkBox" id="e2lawful" class="e2trait">
+                                <label for="e2lawful">Lawful</label>
+                            </li>
+                            <li><input type="checkBox" id="e2lowRarity" class="e2trait">
+                                <label for="e2lowRarity">Low Rarity</label>
+                            </li>
+                            <li><input type="checkBox" id="e2male" class="e2trait">
+                                <label for="e2male">Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e2mechanical" class="e2trait">
+                                <label for="e2mechanical">Mechanical</label>
+                            </li>
+                            <li><input type="checkBox" id="e2neutral" class="e2trait">
+                                <label for="e2neutral">Neutral</label>
+                            </li>
+                            <li><input type="checkBox" id="e2oni" class="e2trait">
+                                <label for="e2oni">Oni</label>
+                            </li>
+                            <li><input type="checkBox" id="e2riding" class="e2trait">
+                                <label for="e2riding">Riding</label>
+                            </li>
+                            <li><input type="checkBox" id="e2roman" class="e2trait">
+                                <label for="e2roman">Roman</label>
+                            </li>
+                            <li><input type="checkBox" id="e2saberFace" class="e2trait">
+                                <label for="e2saberFace">Saber Face</label>
+                            </li>
+                            <li><input type="checkBox" id="e2servant" class="e2trait">
+                                <label for="e2servant">Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e2shadowServant" class="e2trait">
+                                <label for="e2shadowServant">Shadow Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e2superGiant" class="e2trait">
+                                <label for="e2superGiant">Super Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e2TtH" class="e2trait">
+                                <label for="e2TtH">Threat to Humanity</label>
+                            </li>
+                            <li><input type="checkBox" id="e2undead" class="e2trait">
+                                <label for="e2undead">Undead</label>
+                            </li>
+                            <li><input type="checkBox" id="e2wildBeast" class="e2trait">
+                                <label for="e2wildBeast">Wild Beast</label>
+                            </li>
+                            <li><input type="checkBox" id="e2EEN" class="e2trait">
+                                <label for="e2EEN">Enuma Elish Nullification</label>
+                            </li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+
+            <div class="enemies inputs">
+                <label for="e3lass">Class</label>
+                <select name="options" id="e3Class" class="enemyClass">
+
+                    <option value="Saber">Saber</option>
+                    <option value="Lancer">Lancer</option>
+                    <option value="Archer">Archer</option>
+                    <option value="Rider">Rider</option>
+                    <option value="Caster">Caster</option>
+                    <option value="Assassin">Assassin</option>
+                    <option value="Beserker">Beserker</option>
+                    <option value="Ruler">Ruler</option>
+                    <option value="Avenger">Avenger</option>
+                    <option value="Foreigner">Foreigner</option>
+                    <option value="Moon Cancer">Moon Cancer</option>
+                    <option value="Alter Ego">Alter Ego</option>
+                    <option value="Pretender">Pretender</option>
+                    <option value="Beast">Beast</option>
+                </select>
+                <div class="inputLabel">
+                    <label for="e3HP">HP</label>
+                    <input type="number" id="e3HP" step="1000" value=0 class="enemyHP" min=0>
+                </div>
+                <div class="inputLabel">
+                    <label for="e3atrbt">Attribute</label>
+                    <select name="options" id="e3atrbt" class="enemyAttribute">
+
+                        <option value="Man">Man</option>
+                        <option value="Earth">Earth</option>
+                        <option value="Sky">Sky</option>
+                        <option value="Star">Star</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <input type="checkbox" id="e3debuffRes" class="enemyDebuffRes">
+                    <label for="e3debuffRes">Debuff Res/Immune</label>
+                </div>
+                <div class="inputLabel">
+                    <details>
+                        <summary>Traits</summary>
+                        <ul class="myUL">
+                            <li><input type="checkbox" id="e3arthur" class="e3trait">
+                                <!--Ordered by numbers so Arthur is 0 with total of 33-->
+                                <label for="e3arthur">Arthur</label>
+                            </li>
+                            <li><input type="checkBox" id="e3brynhilds" class="e3trait">
+                                <label for="e3brynhilds">Brynhild's Beloved</label>
+                            </li>
+                            <li><input type="checkBox" id="e3chaotic" class="e3trait">
+                                <label for="e3chaotic">Chaotic</label>
+                            </li>
+                            <li><input type="checkBox" id="e3demon" class="e3trait">
+                                <label for="e3demon">Demon</label>
+                            </li>
+                            <li><input type="checkBox" id="e3demonic" class="e3trait">
+                                <label for="e3demonic">Demonic</label>
+                            </li>
+                            <li><input type="checkBox" id="e3divine" class="e3trait">
+                                <label for="e3divine">Divine</label>
+                            </li>
+                            <li><input type="checkBox" id="e3dragon" class="e3trait">
+                                <label for="e3dragon">Dragon</label>
+                            </li>
+                            <li><input type="checkBox" id="e3evil" class="e3trait">
+                                <label for="e3evil">Evil</label>
+                            </li>
+                            <li><input type="checkBox" id="e3fairy" class="e3trait">
+                                <label for="e3fairy">Fairy</label>
+                            </li>
+                            <li><input type="checkBox" id="e3female" class="e3trait">
+                                <label for="e3female">Female</label>
+                            </li>
+                            <li><input type="checkBox" id="e3genji" class="e3trait">
+                                <label for="e3genji">Genji</label>
+                            </li>
+                            <li><input type="checkBox" id="e3giant" class="e3trait">
+                                <label for="e3giant">Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e3good" class="e3trait">
+                                <label for="e3good">Good</label>
+                            </li>
+                            <li><input type="checkBox" id="e3greekMM" class="e3trait">
+                                <label for="e3greekMM">Greek Mythology Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e3human" class="e3trait">
+                                <label for="e3human">Human</label>
+                            </li>
+                            <li><input type="checkBox" id="e3humanoid" class="e3trait">
+                                <label for="e3humanoid">Humanoid</label>
+                            </li>
+                            <li><input type="checkBox" id="e3king" class="e3trait">
+                                <label for="e3king">King</label>
+                            </li>
+                            <li><input type="checkBox" id="e3KOTR" class="e3trait">
+                                <label for="e3KOTR">Knights of the Round</label>
+                            </li>
+                            <li><input type="checkBox" id="e3lawful" class="e3trait">
+                                <label for="e3lawful">Lawful</label>
+                            </li>
+                            <li><input type="checkBox" id="e3lowRarity" class="e3trait">
+                                <label for="e3lowRarity">Low Rarity</label>
+                            </li>
+                            <li><input type="checkBox" id="e3male" class="e3trait">
+                                <label for="e3male">Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e3mechanical" class="e3trait">
+                                <label for="e3mechanical">Mechanical</label>
+                            </li>
+                            <li><input type="checkBox" id="e3neutral" class="e3trait">
+                                <label for="e3neutral">Neutral</label>
+                            </li>
+                            <li><input type="checkBox" id="e3oni" class="e3trait">
+                                <label for="e3oni">Oni</label>
+                            </li>
+                            <li><input type="checkBox" id="e3riding" class="e3trait">
+                                <label for="e3riding">Riding</label>
+                            </li>
+                            <li><input type="checkBox" id="e3roman" class="e3trait">
+                                <label for="e3roman">Roman</label>
+                            </li>
+                            <li><input type="checkBox" id="e3saberFace" class="e3trait">
+                                <label for="e3saberFace">Saber Face</label>
+                            </li>
+                            <li><input type="checkBox" id="e3servant" class="e3trait">
+                                <label for="e3servant">Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e3shadowServant" class="e3trait">
+                                <label for="e3shadowServant">Shadow Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e3superGiant" class="e3trait">
+                                <label for="e3superGiant">Super Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e3TtH" class="e3trait">
+                                <label for="e3TtH">Threat to Humanity</label>
+                            </li>
+                            <li><input type="checkBox" id="e3undead" class="e3trait">
+                                <label for="e3undead">Undead</label>
+                            </li>
+                            <li><input type="checkBox" id="e3wildBeast" class="e3trait">
+                                <label for="e3wildBeast">Wild Beast</label>
+                            </li>
+                            <li><input type="checkBox" id="e3EEN" class="e3trait">
+                                <label for="e3EEN">Enuma Elish Nullification</label>
+                            </li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+        </div>
+
+
+        <h4>Wave 2</h4>
+        <div class="enemyWave">
+            <div class="enemies inputs">
+                <div class="inputLabel">
+                    <label for="e4lass">Class</label>
+                    <select name="options" id="e4Class" class="enemyClass">
+                        <option value="Saber">Saber</option>
+                        <option value="Lancer">Lancer</option>
+                        <option value="Archer">Archer</option>
+                        <option value="Rider">Rider</option>
+                        <option value="Caster">Caster</option>
+                        <option value="Assassin">Assassin</option>
+                        <option value="Beserker">Beserker</option>
+                        <option value="Ruler">Ruler</option>
+                        <option value="Avenger">Avenger</option>
+                        <option value="Foreigner">Foreigner</option>
+                        <option value="Moon Cancer">Moon Cancer</option>
+                        <option value="Alter Ego">Alter Ego</option>
+                        <option value="Pretender">Pretender</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <label for="e4HP">HP</label>
+                    <input type="number" id="e4HP" step="1000" value=0 class="enemyHP" min=0>
+                </div>
+                <div class="inputLabel">
+                    <label for="e4atrbt">Attribute</label>
+                    <select name="options" id="e4atrbt" class="enemyAttribute">
+
+                        <option value="Man">Man</option>
+                        <option value="Earth">Earth</option>
+                        <option value="Sky">Sky</option>
+                        <option value="Star">Star</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <input type="checkbox" id="e4debuffRes" class="enemyDebuffRes">
+                    <label for="e4debuffRes">Debuff Res/Immune</label>
+                </div>
+                <div class="inputLabel">
+                    <details>
+                        <summary>Traits</summary>
+                        <ul class="myUL">
+                            <li><input type="checkbox" id="e4arthur" class="e4trait">
+                                <!--Ordered by numbers so Arthur is 0 with total of 33-->
+                                <label for="e4arthur">Arthur</label>
+                            </li>
+                            <li><input type="checkBox" id="e4brynhilds" class="e4trait">
+                                <label for="e4brynhilds">Brynhild's Beloved</label>
+                            </li>
+                            <li><input type="checkBox" id="e4chaotic" class="e4trait">
+                                <label for="e4chaotic">Chaotic</label>
+                            </li>
+                            <li><input type="checkBox" id="e4demon" class="e4trait">
+                                <label for="e4demon">Demon</label>
+                            </li>
+                            <li><input type="checkBox" id="e4demonic" class="e4trait">
+                                <label for="e4demonic">Demonic</label>
+                            </li>
+                            <li><input type="checkBox" id="e4divine" class="e4trait">
+                                <label for="e4divine">Divine</label>
+                            </li>
+                            <li><input type="checkBox" id="e4dragon" class="e4trait">
+                                <label for="e4dragon">Dragon</label>
+                            </li>
+                            <li><input type="checkBox" id="e4evil" class="e4trait">
+                                <label for="e4evil">Evil</label>
+                            </li>
+                            <li><input type="checkBox" id="e4fairy" class="e4trait">
+                                <label for="e4fairy">Fairy</label>
+                            </li>
+                            <li><input type="checkBox" id="e4female" class="e4trait">
+                                <label for="e4female">Female</label>
+                            </li>
+                            <li><input type="checkBox" id="e4genji" class="e4trait">
+                                <label for="e4genji">Genji</label>
+                            </li>
+                            <li><input type="checkBox" id="e4giant" class="e4trait">
+                                <label for="e4giant">Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e4good" class="e4trait">
+                                <label for="e4good">Good</label>
+                            </li>
+                            <li><input type="checkBox" id="e4greekMM" class="e4trait">
+                                <label for="e4greekMM">Greek Mythology Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e4human" class="e4trait">
+                                <label for="e4human">Human</label>
+                            </li>
+                            <li><input type="checkBox" id="e4humanoid" class="e4trait">
+                                <label for="e4humanoid">Humanoid</label>
+                            </li>
+                            <li><input type="checkBox" id="e4king" class="e4trait">
+                                <label for="e4king">King</label>
+                            </li>
+                            <li><input type="checkBox" id="e4KOTR" class="e4trait">
+                                <label for="e4KOTR">Knights of the Round</label>
+                            </li>
+                            <li><input type="checkBox" id="e4lawful" class="e4trait">
+                                <label for="e4lawful">Lawful</label>
+                            </li>
+                            <li><input type="checkBox" id="e4lowRarity" class="e4trait">
+                                <label for="e4lowRarity">Low Rarity</label>
+                            </li>
+                            <li><input type="checkBox" id="e4male" class="e4trait">
+                                <label for="e4male">Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e4mechanical" class="e4trait">
+                                <label for="e4mechanical">Mechanical</label>
+                            </li>
+                            <li><input type="checkBox" id="e4neutral" class="e4trait">
+                                <label for="e4neutral">Neutral</label>
+                            </li>
+                            <li><input type="checkBox" id="e4oni" class="e4trait">
+                                <label for="e4oni">Oni</label>
+                            </li>
+                            <li><input type="checkBox" id="e4riding" class="e4trait">
+                                <label for="e4riding">Riding</label>
+                            </li>
+                            <li><input type="checkBox" id="e4roman" class="e4trait">
+                                <label for="e4roman">Roman</label>
+                            </li>
+                            <li><input type="checkBox" id="e4saberFace" class="e4trait">
+                                <label for="e4saberFace">Saber Face</label>
+                            </li>
+                            <li><input type="checkBox" id="e4servant" class="e4trait">
+                                <label for="e4servant">Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e4shadowServant" class="e4trait">
+                                <label for="e4shadowServant">Shadow Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e4superGiant" class="e4trait">
+                                <label for="e4superGiant">Super Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e4TtH" class="e4trait">
+                                <label for="e4TtH">Threat to Humanity</label>
+                            </li>
+                            <li><input type="checkBox" id="e4undead" class="e4trait">
+                                <label for="e4undead">Undead</label>
+                            </li>
+                            <li><input type="checkBox" id="e4wildBeast" class="e4trait">
+                                <label for="e4wildBeast">Wild Beast</label>
+                            </li>
+                            <li><input type="checkBox" id="e4EEN" class="e4trait">
+                                <label for="e4EEN">Enuma Elish Nullification</label>
+                            </li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+
+
+
+            <div class="enemies inputs">
+                <div class="inputLabel">
+                    <label for="e5lass">Class</label>
+                    <select name="options" id="e5Class" class="enemyClass">
+                        <option value="Saber">Saber</option>
+                        <option value="Lancer">Lancer</option>
+                        <option value="Archer">Archer</option>
+                        <option value="Rider">Rider</option>
+                        <option value="Caster">Caster</option>
+                        <option value="Assassin">Assassin</option>
+                        <option value="Beserker">Beserker</option>
+                        <option value="Ruler">Ruler</option>
+                        <option value="Avenger">Avenger</option>
+                        <option value="Foreigner">Foreigner</option>
+                        <option value="Moon Cancer">Moon Cancer</option>
+                        <option value="Alter Ego">Alter Ego</option>
+                        <option value="Pretender">Pretender</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <label for="e5HP">HP</label>
+                    <input type="number" id="e5HP" step="1000" value=0 class="enemyHP" min=0>
+                </div>
+                <div class="inputLabel">
+                    <label for="e5atrbt">Attribute</label>
+                    <select name="options" id="e5atrbt" class="enemyAttribute">
+
+                        <option value="Man">Man</option>
+                        <option value="Earth">Earth</option>
+                        <option value="Sky">Sky</option>
+                        <option value="Star">Star</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <input type="checkbox" id="e5debuffRes" class="enemyDebuffRes">
+                    <label for="e5debuffRes">Debuff Res/Immune</label>
+                </div>
+                <div class="inputLabel">
+                    <details>
+                        <summary>Traits</summary>
+                        <ul class="myUL">
+                            <li><input type="checkbox" id="e5arthur" class="e5trait">
+                                <!--Ordered by numbers so Arthur is 0 with total of 33-->
+                                <label for="e5arthur">Arthur</label>
+                            </li>
+                            <li><input type="checkBox" id="e5brynhilds" class="e5trait">
+                                <label for="e5brynhilds">Brynhild's Beloved</label>
+                            </li>
+                            <li><input type="checkBox" id="e5chaotic" class="e5trait">
+                                <label for="e5chaotic">Chaotic</label>
+                            </li>
+                            <li><input type="checkBox" id="e5demon" class="e5trait">
+                                <label for="e5demon">Demon</label>
+                            </li>
+                            <li><input type="checkBox" id="e5demonic" class="e5trait">
+                                <label for="e5demonic">Demonic</label>
+                            </li>
+                            <li><input type="checkBox" id="e5divine" class="e5trait">
+                                <label for="e5divine">Divine</label>
+                            </li>
+                            <li><input type="checkBox" id="e5dragon" class="e5trait">
+                                <label for="e5dragon">Dragon</label>
+                            </li>
+                            <li><input type="checkBox" id="e5evil" class="e5trait">
+                                <label for="e5evil">Evil</label>
+                            </li>
+                            <li><input type="checkBox" id="e5fairy" class="e5trait">
+                                <label for="e5fairy">Fairy</label>
+                            </li>
+                            <li><input type="checkBox" id="e5female" class="e5trait">
+                                <label for="e5female">Female</label>
+                            </li>
+                            <li><input type="checkBox" id="e5genji" class="e5trait">
+                                <label for="e5genji">Genji</label>
+                            </li>
+                            <li><input type="checkBox" id="e5giant" class="e5trait">
+                                <label for="e5giant">Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e5good" class="e5trait">
+                                <label for="e5good">Good</label>
+                            </li>
+                            <li><input type="checkBox" id="e5greekMM" class="e5trait">
+                                <label for="e5greekMM">Greek Mythology Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e5human" class="e5trait">
+                                <label for="e5human">Human</label>
+                            </li>
+                            <li><input type="checkBox" id="e5humanoid" class="e5trait">
+                                <label for="e5humanoid">Humanoid</label>
+                            </li>
+                            <li><input type="checkBox" id="e5king" class="e5trait">
+                                <label for="e5king">King</label>
+                            </li>
+                            <li><input type="checkBox" id="e5KOTR" class="e5trait">
+                                <label for="e5KOTR">Knights of the Round</label>
+                            </li>
+                            <li><input type="checkBox" id="e5lawful" class="e5trait">
+                                <label for="e5lawful">Lawful</label>
+                            </li>
+                            <li><input type="checkBox" id="e5lowRarity" class="e5trait">
+                                <label for="e5lowRarity">Low Rarity</label>
+                            </li>
+                            <li><input type="checkBox" id="e5male" class="e5trait">
+                                <label for="e5male">Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e5mechanical" class="e5trait">
+                                <label for="e5mechanical">Mechanical</label>
+                            </li>
+                            <li><input type="checkBox" id="e5neutral" class="e5trait">
+                                <label for="e5neutral">Neutral</label>
+                            </li>
+                            <li><input type="checkBox" id="e5oni" class="e5trait">
+                                <label for="e5oni">Oni</label>
+                            </li>
+                            <li><input type="checkBox" id="e5riding" class="e5trait">
+                                <label for="e5riding">Riding</label>
+                            </li>
+                            <li><input type="checkBox" id="e5roman" class="e5trait">
+                                <label for="e5roman">Roman</label>
+                            </li>
+                            <li><input type="checkBox" id="e5saberFace" class="e5trait">
+                                <label for="e5saberFace">Saber Face</label>
+                            </li>
+                            <li><input type="checkBox" id="e5servant" class="e5trait">
+                                <label for="e5servant">Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e5shadowServant" class="e5trait">
+                                <label for="e5shadowServant">Shadow Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e5superGiant" class="e5trait">
+                                <label for="e5superGiant">Super Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e5TtH" class="e5trait">
+                                <label for="e5TtH">Threat to Humanity</label>
+                            </li>
+                            <li><input type="checkBox" id="e5undead" class="e5trait">
+                                <label for="e5undead">Undead</label>
+                            </li>
+                            <li><input type="checkBox" id="e5wildBeast" class="e5trait">
+                                <label for="e5wildBeast">Wild Beast</label>
+                            </li>
+                            <li><input type="checkBox" id="e5EEN" class="e5trait">
+                                <label for="e5EEN">Enuma Elish Nullification</label>
+                            </li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+
+
+
+            <div class="enemies inputs">
+                <div class="inputLabel">
+                    <label for="e6lass">Class</label>
+                    <select name="options" id="e6Class" class="enemyClass">
+                        <option value="Saber">Saber</option>
+                        <option value="Lancer">Lancer</option>
+                        <option value="Archer">Archer</option>
+                        <option value="Rider">Rider</option>
+                        <option value="Caster">Caster</option>
+                        <option value="Assassin">Assassin</option>
+                        <option value="Beserker">Beserker</option>
+                        <option value="Ruler">Ruler</option>
+                        <option value="Avenger">Avenger</option>
+                        <option value="Foreigner">Foreigner</option>
+                        <option value="Moon Cancer">Moon Cancer</option>
+                        <option value="Alter Ego">Alter Ego</option>
+                        <option value="Pretender">Pretender</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <label for="e6HP">HP</label>
+                    <input type="number" id="e6HP" step="1000" value=0 class="enemyHP" min=0>
+                </div>
+                <div class="inputLabel">
+                    <label for="e6atrbt">Attribute</label>
+                    <select name="options" id="e6atrbt" class="enemyAttribute">
+
+                        <option value="Man">Man</option>
+                        <option value="Earth">Earth</option>
+                        <option value="Sky">Sky</option>
+                        <option value="Star">Star</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <input type="checkbox" id="e6debuffRes" class="enemyDebuffRes">
+                    <label for="e6debuffRes">Debuff Res/Immune</label>
+                </div>
+                <div class="inputLabel">
+                    <details>
+                        <summary>Traits</summary>
+                        <ul class="myUL">
+                            <li><input type="checkbox" id="e6arthur" class="e6trait">
+                                <!--Ordered by numbers so Arthur is 0 with total of 33-->
+                                <label for="e6arthur">Arthur</label>
+                            </li>
+                            <li><input type="checkBox" id="e6brynhilds" class="e6trait">
+                                <label for="e6brynhilds">Brynhild's Beloved</label>
+                            </li>
+                            <li><input type="checkBox" id="e6chaotic" class="e6trait">
+                                <label for="e6chaotic">Chaotic</label>
+                            </li>
+                            <li><input type="checkBox" id="e6demon" class="e6trait">
+                                <label for="e6demon">Demon</label>
+                            </li>
+                            <li><input type="checkBox" id="e6demonic" class="e6trait">
+                                <label for="e6demonic">Demonic</label>
+                            </li>
+                            <li><input type="checkBox" id="e6divine" class="e6trait">
+                                <label for="e6divine">Divine</label>
+                            </li>
+                            <li><input type="checkBox" id="e6dragon" class="e6trait">
+                                <label for="e6dragon">Dragon</label>
+                            </li>
+                            <li><input type="checkBox" id="e6evil" class="e6trait">
+                                <label for="e6evil">Evil</label>
+                            </li>
+                            <li><input type="checkBox" id="e6fairy" class="e6trait">
+                                <label for="e6fairy">Fairy</label>
+                            </li>
+                            <li><input type="checkBox" id="e6female" class="e6trait">
+                                <label for="e6female">Female</label>
+                            </li>
+                            <li><input type="checkBox" id="e6genji" class="e6trait">
+                                <label for="e6genji">Genji</label>
+                            </li>
+                            <li><input type="checkBox" id="e6giant" class="e6trait">
+                                <label for="e6giant">Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e6good" class="e6trait">
+                                <label for="e6good">Good</label>
+                            </li>
+                            <li><input type="checkBox" id="e6greekMM" class="e6trait">
+                                <label for="e6greekMM">Greek Mythology Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e6human" class="e6trait">
+                                <label for="e6human">Human</label>
+                            </li>
+                            <li><input type="checkBox" id="e6humanoid" class="e6trait">
+                                <label for="e6humanoid">Humanoid</label>
+                            </li>
+                            <li><input type="checkBox" id="e6king" class="e6trait">
+                                <label for="e6king">King</label>
+                            </li>
+                            <li><input type="checkBox" id="e6KOTR" class="e6trait">
+                                <label for="e6KOTR">Knights of the Round</label>
+                            </li>
+                            <li><input type="checkBox" id="e6lawful" class="e6trait">
+                                <label for="e6lawful">Lawful</label>
+                            </li>
+                            <li><input type="checkBox" id="e6lowRarity" class="e6trait">
+                                <label for="e6lowRarity">Low Rarity</label>
+                            </li>
+                            <li><input type="checkBox" id="e6male" class="e6trait">
+                                <label for="e6male">Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e6mechanical" class="e6trait">
+                                <label for="e6mechanical">Mechanical</label>
+                            </li>
+                            <li><input type="checkBox" id="e6neutral" class="e6trait">
+                                <label for="e6neutral">Neutral</label>
+                            </li>
+                            <li><input type="checkBox" id="e6oni" class="e6trait">
+                                <label for="e6oni">Oni</label>
+                            </li>
+                            <li><input type="checkBox" id="e6riding" class="e6trait">
+                                <label for="e6riding">Riding</label>
+                            </li>
+                            <li><input type="checkBox" id="e6roman" class="e6trait">
+                                <label for="e6roman">Roman</label>
+                            </li>
+                            <li><input type="checkBox" id="e6saberFace" class="e6trait">
+                                <label for="e6saberFace">Saber Face</label>
+                            </li>
+                            <li><input type="checkBox" id="e6servant" class="e6trait">
+                                <label for="e6servant">Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e6shadowServant" class="e6trait">
+                                <label for="e6shadowServant">Shadow Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e6superGiant" class="e6trait">
+                                <label for="e6superGiant">Super Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e6TtH" class="e6trait">
+                                <label for="e6TtH">Threat to Humanity</label>
+                            </li>
+                            <li><input type="checkBox" id="e6undead" class="e6trait">
+                                <label for="e6undead">Undead</label>
+                            </li>
+                            <li><input type="checkBox" id="e6wildBeast" class="e6trait">
+                                <label for="e6wildBeast">Wild Beast</label>
+                            </li>
+                            <li><input type="checkBox" id="e6EEN" class="e6trait">
+                                <label for="e6EEN">Enuma Elish Nullification</label>
+                            </li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+        </div>
+        <h4>Wave 3</h4>
+        <div class="enemyWave">
+            <div class="enemies inputs">
+                <div class="inputLabel">
+                    <label for="e7lass">Class</label>
+                    <select name="options" id="e7Class" class="enemyClass">
+                        <option value="Saber">Saber</option>
+                        <option value="Lancer">Lancer</option>
+                        <option value="Archer">Archer</option>
+                        <option value="Rider">Rider</option>
+                        <option value="Caster">Caster</option>
+                        <option value="Assassin">Assassin</option>
+                        <option value="Beserker">Beserker</option>
+                        <option value="Ruler">Ruler</option>
+                        <option value="Avenger">Avenger</option>
+                        <option value="Foreigner">Foreigner</option>
+                        <option value="Moon Cancer">Moon Cancer</option>
+                        <option value="Alter Ego">Alter Ego</option>
+                        <option value="Pretender">Pretender</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <label for="e7HP">HP</label>
+                    <input type="number" id="e7HP" step="1000" value=0 class="enemyHP" min=0>
+                </div>
+                <div class="inputLabel">
+                    <label for="e7atrbt">Attribute</label>
+                    <select name="options" id="e7atrbt" class="enemyAttribute">
+
+                        <option value="Man">Man</option>
+                        <option value="Earth">Earth</option>
+                        <option value="Sky">Sky</option>
+                        <option value="Star">Star</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <input type="checkbox" id="e7debuffRes" class="enemyDebuffRes">
+                    <label for="e7debuffRes">Debuff Res/Immune</label>
+                </div>
+                <div class="inputLabel">
+                    <details>
+                        <summary>Traits</summary>
+                        <ul class="myUL">
+                            <li><input type="checkbox" id="e7arthur" class="e7trait">
+                                <!--Ordered by numbers so Arthur is 0 with total of 33-->
+                                <label for="e7arthur">Arthur</label>
+                            </li>
+                            <li><input type="checkBox" id="e7brynhilds" class="e7trait">
+                                <label for="e7brynhilds">Brynhild's Beloved</label>
+                            </li>
+                            <li><input type="checkBox" id="e7chaotic" class="e7trait">
+                                <label for="e7chaotic">Chaotic</label>
+                            </li>
+                            <li><input type="checkBox" id="e7demon" class="e7trait">
+                                <label for="e7demon">Demon</label>
+                            </li>
+                            <li><input type="checkBox" id="e7demonic" class="e7trait">
+                                <label for="e7demonic">Demonic</label>
+                            </li>
+                            <li><input type="checkBox" id="e7divine" class="e7trait">
+                                <label for="e7divine">Divine</label>
+                            </li>
+                            <li><input type="checkBox" id="e7dragon" class="e7trait">
+                                <label for="e7dragon">Dragon</label>
+                            </li>
+                            <li><input type="checkBox" id="e7evil" class="e7trait">
+                                <label for="e7evil">Evil</label>
+                            </li>
+                            <li><input type="checkBox" id="e7fairy" class="e7trait">
+                                <label for="e7fairy">Fairy</label>
+                            </li>
+                            <li><input type="checkBox" id="e7female" class="e7trait">
+                                <label for="e7female">Female</label>
+                            </li>
+                            <li><input type="checkBox" id="e7genji" class="e7trait">
+                                <label for="e7genji">Genji</label>
+                            </li>
+                            <li><input type="checkBox" id="e7giant" class="e7trait">
+                                <label for="e7giant">Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e7good" class="e7trait">
+                                <label for="e7good">Good</label>
+                            </li>
+                            <li><input type="checkBox" id="e7greekMM" class="e7trait">
+                                <label for="e7greekMM">Greek Mythology Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e7human" class="e7trait">
+                                <label for="e7human">Human</label>
+                            </li>
+                            <li><input type="checkBox" id="e7humanoid" class="e7trait">
+                                <label for="e7humanoid">Humanoid</label>
+                            </li>
+                            <li><input type="checkBox" id="e7king" class="e7trait">
+                                <label for="e7king">King</label>
+                            </li>
+                            <li><input type="checkBox" id="e7KOTR" class="e7trait">
+                                <label for="e7KOTR">Knights of the Round</label>
+                            </li>
+                            <li><input type="checkBox" id="e7lawful" class="e7trait">
+                                <label for="e7lawful">Lawful</label>
+                            </li>
+                            <li><input type="checkBox" id="e7lowRarity" class="e7trait">
+                                <label for="e7lowRarity">Low Rarity</label>
+                            </li>
+                            <li><input type="checkBox" id="e7male" class="e7trait">
+                                <label for="e7male">Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e7mechanical" class="e7trait">
+                                <label for="e7mechanical">Mechanical</label>
+                            </li>
+                            <li><input type="checkBox" id="e7neutral" class="e7trait">
+                                <label for="e7neutral">Neutral</label>
+                            </li>
+                            <li><input type="checkBox" id="e7oni" class="e7trait">
+                                <label for="e7oni">Oni</label>
+                            </li>
+                            <li><input type="checkBox" id="e7riding" class="e7trait">
+                                <label for="e7riding">Riding</label>
+                            </li>
+                            <li><input type="checkBox" id="e7roman" class="e7trait">
+                                <label for="e7roman">Roman</label>
+                            </li>
+                            <li><input type="checkBox" id="e7saberFace" class="e7trait">
+                                <label for="e7saberFace">Saber Face</label>
+                            </li>
+                            <li><input type="checkBox" id="e7servant" class="e7trait">
+                                <label for="e7servant">Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e7shadowServant" class="e7trait">
+                                <label for="e7shadowServant">Shadow Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e7superGiant" class="e7trait">
+                                <label for="e7superGiant">Super Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e7TtH" class="e7trait">
+                                <label for="e7TtH">Threat to Humanity</label>
+                            </li>
+                            <li><input type="checkBox" id="e7undead" class="e7trait">
+                                <label for="e7undead">Undead</label>
+                            </li>
+                            <li><input type="checkBox" id="e7wildBeast" class="e7trait">
+                                <label for="e7wildBeast">Wild Beast</label>
+                            </li>
+                            <li><input type="checkBox" id="e7EEN" class="e7trait">
+                                <label for="e7EEN">Enuma Elish Nullification</label>
+                            </li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+
+            <div class="enemies inputs">
+                <div class="inputLabel">
+                    <label for="e8lass">Class</label>
+                    <select name="options" id="e8Class" class="enemyClass">
+                        <option value="Saber">Saber</option>
+                        <option value="Lancer">Lancer</option>
+                        <option value="Archer">Archer</option>
+                        <option value="Rider">Rider</option>
+                        <option value="Caster">Caster</option>
+                        <option value="Assassin">Assassin</option>
+                        <option value="Beserker">Beserker</option>
+                        <option value="Ruler">Ruler</option>
+                        <option value="Avenger">Avenger</option>
+                        <option value="Foreigner">Foreigner</option>
+                        <option value="Moon Cancer">Moon Cancer</option>
+                        <option value="Alter Ego">Alter Ego</option>
+                        <option value="Pretender">Pretender</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <label for="e8HP">HP</label>
+                    <input type="number" id="e8HP" step="1000" value=0 class="enemyHP" min=0>
+                </div>
+                <div class="inputLabel">
+                    <label for="e8atrbt">Attribute</label>
+                    <select name="options" id="e8atrbt" class="enemyAttribute">
+
+                        <option value="Man">Man</option>
+                        <option value="Earth">Earth</option>
+                        <option value="Sky">Sky</option>
+                        <option value="Star">Star</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <input type="checkbox" id="e8debuffRes" class="enemyDebuffRes">
+                    <label for="e8debuffRes">Debuff Res/Immune</label>
+                </div>
+                <div class="inputLabel">
+                    <details>
+                        <summary>Traits</summary>
+                        <ul class="myUL">
+                            <li><input type="checkbox" id="e8arthur" class="e8trait">
+                                <!--Ordered by numbers so Arthur is 0 with total of 33-->
+                                <label for="e8arthur">Arthur</label>
+                            </li>
+                            <li><input type="checkBox" id="e8brynhilds" class="e8trait">
+                                <label for="e8brynhilds">Brynhild's Beloved</label>
+                            </li>
+                            <li><input type="checkBox" id="e8chaotic" class="e8trait">
+                                <label for="e8chaotic">Chaotic</label>
+                            </li>
+                            <li><input type="checkBox" id="e8demon" class="e8trait">
+                                <label for="e8demon">Demon</label>
+                            </li>
+                            <li><input type="checkBox" id="e8demonic" class="e8trait">
+                                <label for="e8demonic">Demonic</label>
+                            </li>
+                            <li><input type="checkBox" id="e8divine" class="e8trait">
+                                <label for="e8divine">Divine</label>
+                            </li>
+                            <li><input type="checkBox" id="e8dragon" class="e8trait">
+                                <label for="e8dragon">Dragon</label>
+                            </li>
+                            <li><input type="checkBox" id="e8evil" class="e8trait">
+                                <label for="e8evil">Evil</label>
+                            </li>
+                            <li><input type="checkBox" id="e8fairy" class="e8trait">
+                                <label for="e8fairy">Fairy</label>
+                            </li>
+                            <li><input type="checkBox" id="e8female" class="e8trait">
+                                <label for="e8female">Female</label>
+                            </li>
+                            <li><input type="checkBox" id="e8genji" class="e8trait">
+                                <label for="e8genji">Genji</label>
+                            </li>
+                            <li><input type="checkBox" id="e8giant" class="e8trait">
+                                <label for="e8giant">Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e8good" class="e8trait">
+                                <label for="e8good">Good</label>
+                            </li>
+                            <li><input type="checkBox" id="e8greekMM" class="e8trait">
+                                <label for="e8greekMM">Greek Mythology Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e8human" class="e8trait">
+                                <label for="e8human">Human</label>
+                            </li>
+                            <li><input type="checkBox" id="e8humanoid" class="e8trait">
+                                <label for="e8humanoid">Humanoid</label>
+                            </li>
+                            <li><input type="checkBox" id="e8king" class="e8trait">
+                                <label for="e8king">King</label>
+                            </li>
+                            <li><input type="checkBox" id="e8KOTR" class="e8trait">
+                                <label for="e8KOTR">Knights of the Round</label>
+                            </li>
+                            <li><input type="checkBox" id="e8lawful" class="e8trait">
+                                <label for="e8lawful">Lawful</label>
+                            </li>
+                            <li><input type="checkBox" id="e8lowRarity" class="e8trait">
+                                <label for="e8lowRarity">Low Rarity</label>
+                            </li>
+                            <li><input type="checkBox" id="e8male" class="e8trait">
+                                <label for="e8male">Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e8mechanical" class="e8trait">
+                                <label for="e8mechanical">Mechanical</label>
+                            </li>
+                            <li><input type="checkBox" id="e8neutral" class="e8trait">
+                                <label for="e8neutral">Neutral</label>
+                            </li>
+                            <li><input type="checkBox" id="e8oni" class="e8trait">
+                                <label for="e8oni">Oni</label>
+                            </li>
+                            <li><input type="checkBox" id="e8riding" class="e8trait">
+                                <label for="e8riding">Riding</label>
+                            </li>
+                            <li><input type="checkBox" id="e8roman" class="e8trait">
+                                <label for="e8roman">Roman</label>
+                            </li>
+                            <li><input type="checkBox" id="e8saberFace" class="e8trait">
+                                <label for="e8saberFace">Saber Face</label>
+                            </li>
+                            <li><input type="checkBox" id="e8servant" class="e8trait">
+                                <label for="e8servant">Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e8shadowServant" class="e8trait">
+                                <label for="e8shadowServant">Shadow Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e8superGiant" class="e8trait">
+                                <label for="e8superGiant">Super Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e8TtH" class="e8trait">
+                                <label for="e8TtH">Threat to Humanity</label>
+                            </li>
+                            <li><input type="checkBox" id="e8undead" class="e8trait">
+                                <label for="e8undead">Undead</label>
+                            </li>
+                            <li><input type="checkBox" id="e8wildBeast" class="e8trait">
+                                <label for="e8wildBeast">Wild Beast</label>
+                            </li>
+                            <li><input type="checkBox" id="e8EEN" class="e8trait">
+                                <label for="e8EEN">Enuma Elish Nullification</label>
+                            </li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+
+            <div class="enemies inputs">
+                <div class="inputLabel">
+                    <label for="e9lass">Class</label>
+                    <select name="options" id="e9Class" class="enemyClass">
+                        <option value="Saber">Saber</option>
+                        <option value="Lancer">Lancer</option>
+                        <option value="Archer">Archer</option>
+                        <option value="Rider">Rider</option>
+                        <option value="Caster">Caster</option>
+                        <option value="Assassin">Assassin</option>
+                        <option value="Beserker">Beserker</option>
+                        <option value="Ruler">Ruler</option>
+                        <option value="Avenger">Avenger</option>
+                        <option value="Foreigner">Foreigner</option>
+                        <option value="Moon Cancer">Moon Cancer</option>
+                        <option value="Alter Ego">Alter Ego</option>
+                        <option value="Pretender">Pretender</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <label for="e9HP">HP</label>
+                    <input type="number" id="e9HP" step="1000" value=0 class="enemyHP" min=0>
+                </div>
+                <div class="inputLabel">
+                    <label for="e9atrbt">Attribute</label>
+                    <select name="options" id="e9atrbt" class="enemyAttribute">
+
+                        <option value="Man">Man</option>
+                        <option value="Earth">Earth</option>
+                        <option value="Sky">Sky</option>
+                        <option value="Star">Star</option>
+                        <option value="Beast">Beast</option>
+                    </select>
+                </div>
+                <div class="inputLabel">
+                    <input type="checkbox" id="e9debuffRes" class="enemyDebuffRes">
+                    <label for="e9debuffRes">Debuff Res/Immune</label>
+                </div>
+                <div class="inputLabel">
+                    <details>
+                        <summary>Traits</summary>
+                        <ul class="myUL">
+                            <li><input type="checkbox" id="e9arthur" class="e9trait">
+                                <!--Ordered by numbers so Arthur is 0 with total of 33-->
+                                <label for="e9arthur">Arthur</label>
+                            </li>
+                            <li><input type="checkBox" id="e9brynhilds" class="e9trait">
+                                <label for="e9brynhilds">Brynhild's Beloved</label>
+                            </li>
+                            <li><input type="checkBox" id="e9chaotic" class="e9trait">
+                                <label for="e9chaotic">Chaotic</label>
+                            </li>
+                            <li><input type="checkBox" id="e9demon" class="e9trait">
+                                <label for="e9demon">Demon</label>
+                            </li>
+                            <li><input type="checkBox" id="e9demonic" class="e9trait">
+                                <label for="e9demonic">Demonic</label>
+                            </li>
+                            <li><input type="checkBox" id="e9divine" class="e9trait">
+                                <label for="e9divine">Divine</label>
+                            </li>
+                            <li><input type="checkBox" id="e9dragon" class="e9trait">
+                                <label for="e9dragon">Dragon</label>
+                            </li>
+                            <li><input type="checkBox" id="e9evil" class="e9trait">
+                                <label for="e9evil">Evil</label>
+                            </li>
+                            <li><input type="checkBox" id="e9fairy" class="e9trait">
+                                <label for="e9fairy">Fairy</label>
+                            </li>
+                            <li><input type="checkBox" id="e9female" class="e9trait">
+                                <label for="e9female">Female</label>
+                            </li>
+                            <li><input type="checkBox" id="e9genji" class="e9trait">
+                                <label for="e9genji">Genji</label>
+                            </li>
+                            <li><input type="checkBox" id="e9giant" class="e9trait">
+                                <label for="e9giant">Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e9good" class="e9trait">
+                                <label for="e9good">Good</label>
+                            </li>
+                            <li><input type="checkBox" id="e9greekMM" class="e9trait">
+                                <label for="e9greekMM">Greek Mythology Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e9human" class="e9trait">
+                                <label for="e9human">Human</label>
+                            </li>
+                            <li><input type="checkBox" id="e9humanoid" class="e9trait">
+                                <label for="e9humanoid">Humanoid</label>
+                            </li>
+                            <li><input type="checkBox" id="e9king" class="e9trait">
+                                <label for="e9king">King</label>
+                            </li>
+                            <li><input type="checkBox" id="e9KOTR" class="e9trait">
+                                <label for="e9KOTR">Knights of the Round</label>
+                            </li>
+                            <li><input type="checkBox" id="e9lawful" class="e9trait">
+                                <label for="e9lawful">Lawful</label>
+                            </li>
+                            <li><input type="checkBox" id="e9lowRarity" class="e9trait">
+                                <label for="e9lowRarity">Low Rarity</label>
+                            </li>
+                            <li><input type="checkBox" id="e9male" class="e9trait">
+                                <label for="e9male">Male</label>
+                            </li>
+                            <li><input type="checkBox" id="e9mechanical" class="e9trait">
+                                <label for="e9mechanical">Mechanical</label>
+                            </li>
+                            <li><input type="checkBox" id="e9neutral" class="e9trait">
+                                <label for="e9neutral">Neutral</label>
+                            </li>
+                            <li><input type="checkBox" id="e9oni" class="e9trait">
+                                <label for="e9oni">Oni</label>
+                            </li>
+                            <li><input type="checkBox" id="e9riding" class="e9trait">
+                                <label for="e9riding">Riding</label>
+                            </li>
+                            <li><input type="checkBox" id="e9roman" class="e9trait">
+                                <label for="e9roman">Roman</label>
+                            </li>
+                            <li><input type="checkBox" id="e9saberFace" class="e9trait">
+                                <label for="e9saberFace">Saber Face</label>
+                            </li>
+                            <li><input type="checkBox" id="e9servant" class="e9trait">
+                                <label for="e9servant">Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e9shadowServant" class="e9trait">
+                                <label for="e9shadowServant">Shadow Servant</label>
+                            </li>
+                            <li><input type="checkBox" id="e9superGiant" class="e9trait">
+                                <label for="e9superGiant">Super Giant</label>
+                            </li>
+                            <li><input type="checkBox" id="e9TtH" class="e9trait">
+                                <label for="e9TtH">Threat to Humanity</label>
+                            </li>
+                            <li><input type="checkBox" id="e9undead" class="e9trait">
+                                <label for="e9undead">Undead</label>
+                            </li>
+                            <li><input type="checkBox" id="e9wildBeast" class="e9trait">
+                                <label for="e9wildBeast">Wild Beast</label>
+                            </li>
+                            <li><input type="checkBox" id="e9EEN" class="e9trait">
+                                <label for="e9EEN">Enuma Elish Nullification</label>
+                            </li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+
+
+        </div>
+    </section>
+
+    <h2 class="center">Craft Essence Information</h2>
+    <section class="center">
+
+
+        <div class="inputLabel center">
+            <label for="CEatk" class="statbox1">Atk Stat</label>
+            <input type="number" id="CEatk" value=0 min=0>
+            <br>
+        </div>
+
+
+        <!--Craft Essense Information will ask if teams want to use Black Grail or KScope/SuperScope and also asks about event farming CE including ATK stats and Buffs. Also asks for Non-MLB and MLB since charge CEs can impact algorithm-->
+
+        <!-- <input type="checkbox" id="5CE">
+        <label for="5CE">5 CE Setup (Includes one Event CE of your Choosing)</label>
+        <br> -->
+        <!--If the box is checked display another CE information box-->
+        <h4>Base CE Information</h4>
+        <div class="ceInput">
+
+            <div class="inputLabel">
+                <label for="CEnpCharge" class="statbox">NP Charge</label>
+                <input type="number" id="CEnpCharge" value=80 min=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="CEatkBuff" class="statbox">Atk Up</label>
+                <input type="number" id="CEatkBuff" value=0 min=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="CEbuster" class="statbox">Buster Up</label>
+                <input type="number" id="CEbuster" value=0 min=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="CEarts" class="statbox">Arts Up</label>
+                <input type="number" id="CEarts" value=0 min=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="CEquick" class="statbox">Quick Up</label>
+                <input type="number" id="CEquick" value=0 min=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="CEnpDamage" class="statbox">NP Damage Up</label>
+                <input type="number" id="CEnpDamage" value=0 min=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="CEnpOC" class="statbox">NP Overcharge</label>
+                <input type="number" id="CEnpOC" value=0 min=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="CEnpGen" class="statbox">NP Generation Up</label>
+                <input type="number" id="CEnpGen" value=0 min=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="CEnpRegen" class="statbox">NP Regen</label>
+                <input type="number" id="CEnpRegen" value=0 min=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="CEbonusMultiplier" class="statbox">Bonus Multiplier</label>
+                <input type="number" id="CEbonusMultiplier" value=0 min=0>
+            </div>
+        </div>
+        <h4>MLB Information</h4>
+        <div class="ceInput">
+            <div class="inputLabel">
+                <label for="MLBnpCharge" class="statbox">NP Charge</label>
+                <input type="number" id="MLBnpCharge" value=80>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="MLBatkBuff" class="statbox">Atk Up</label>
+                <input type="number" id="MLBatkBuff" value=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="MLBbuster" class="statbox">Buster Up</label>
+                <input type="number" id="MLBbuster" value=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="MLBarts" class="statbox">Arts Up</label>
+                <input type="number" id="MLBarts" value=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="MLBquick" class="statbox">Quick Up</label>
+                <input type="number" id="MLBquick" value=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="MLBnpDamage" class="statbox">NP Damage
+                    Up</label>
+                <input type="number" id="MLBnpDamage" value=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="MLBnpOC" class="statbox">NP
+                    Overcharge</label>
+                <input type="number" id="MLBnpOC" value=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="MLBnpGen" class="statbox">NP Generation
+                    Up</label>
+                <input type="number" id="MLBnpGen" value=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="MLBnpRegen" class="statbox">NP
+                    Regen</label>
+                <input type="number" id="MLBnpRegen" value=0>
+                <br>
+            </div>
+            <div class="inputLabel">
+                <label for="MLBbonusMultiplier" class="statbox">Bonus
+                    Damage</label>
+                <input type="number" id="MLBbonusMultiplier" value=0>
+            </div>
+        </div>
+    </section>
+
+    <!-- <h2>Team Comps</h2>
+    <section>
+        Team Comps checkboxes to select what the algorithm calculates are able to be used on the node
+
+        <p>Select team comps you want to be included.</p>
+        <h4>Single Core Comps</h4>
+        <input type="checkbox" id="1CC" checked>
+        <label for="1CC">2x Castoria</label>
+        <br>
+        <input type="checkbox" id="CC+" checked>
+        <label for="CC+">2x Castoria + Waver/Oberon/Reines/Nero Bride</label>
+        <br>
+        <input type="checkbox" id="KK" checked>
+        <label for="KK">2x Koyanskaya</label>
+        <br>
+        <input type="checkbox" id="KKO" checked>
+        <label for="KKO">2x Koyanskaya + Oberon</label>
+        <br>
+        <input type="checkbox" id="1OO">
+        <label for="1OO">2x Oberon</label>
+        <br>
+        <input type="checkbox" id="1SS">
+        <label for="1SS">2x Skadi</label>
+        <br>
+        <input type="checkbox" id="SS+">
+        <label for="SS+">2x Skadi + Waver/Overon/Reines</label>
+        <h4>Double Core Comps</h4>
+        <input type="checkbox" id="2CC" checked>
+        <label for="2CC">2x Castoria</label>
+        <br>
+        <input type="checkbox" id="CO" checked>
+        <label for="CO">Castoria + Oberon</label>
+        <br>
+        <input type="checkbox" id="CW" checked>
+ishtar        <label for="CW">Castoria + Waver</label>
+        <br>
+        <input type="checkbox" id="2OO">
+        <label for="2OO">2x Oberon</label>
+        <br>
+        <input type="checkbox" id="2SS">
+        <label for="2SS">2x Skadi</label>
+
+        <h4>Other Comps</h4>
+        <input type="checkbox" id="NPswap">
+        <label for="NPswap">Switch NP Card Type (EMIYA Archer/Melusine/Space Ishtar)</label>
+        <br>
+        <input type="checkbox" id="AH">
+        <label for="AH">Arash and Habetrot</label>
+        <br>
+        <input type="checkbox" id="Gong">
+        <label for="Gong">Chen Gong</label><br><br>
+    </section>
+-->
+
+    <h2 class="center">Comp Calculator</h2>
+    <section class="center">
+        <label for="desiredServant">Servant</label>
+        <select name="options" id="desiredServant">
+            <option value=0>Artoria (Saber)</option>
+            <option value=1>Mordred (Saber)</option>
+            <option value=2>Ibuki (Saber)</option>
+            <option value=3>Ereshkigal</option>
+            <option value=4>Artoria (Lancer)</option>
+            <option value=5>Ishtar (Archer)</option>
+            <option value=6>Nero (Caster)</option>
+            <option value=7>Drake</option>
+            <option value=8>Morgan</option>
+            <option value=9>BB (Summer)</option>
+            <option value=10>Artoria (Ruler)</option>
+            <option value=11>Abigail (Summer)</option>
+        </select>
+        <br><br>
+        <button onclick="singleComps()">Calculate</button>
+    </section>
+    <div id="Results" class="center">
+
+    </div>
+</body>
+
+</html>
